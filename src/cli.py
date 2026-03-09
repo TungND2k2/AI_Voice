@@ -6,8 +6,8 @@ import subprocess
 from loguru import logger
 from rich.table import Table
 from rich.console import Console
-from viettts.tts import TTS
-from viettts.utils.file_utils import load_prompt_speech_from_file, load_voices
+from src.tts import TTS
+from src.utils.file_utils import load_prompt_speech_from_file, load_voices
 
 
 AUDIO_DIR = 'samples'
@@ -23,7 +23,7 @@ def start_server(host: str, port: int, workers: int):
     Usage: viettts server --host 0.0.0.0 --port 8298 -w 4
     """
     logger.info("Starting server")
-    cmd = f'gunicorn viettts.server:app \
+    cmd = f'gunicorn src.server:app \
         -k uvicorn.workers.UvicornWorker \
         --bind {host}:{port} \
         --workers {workers} \

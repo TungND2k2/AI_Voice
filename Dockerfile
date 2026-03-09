@@ -22,7 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN apt clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-COPY ./viettts /app/viettts
+COPY ./src /app/src
 COPY ./samples /app/samples
 COPY ./web /app/web
 COPY ./pyproject.toml /app/

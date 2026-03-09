@@ -1,7 +1,7 @@
 import torch
 
-from viettts.transformer.activation import Swish
-from viettts.transformer.subsampling import (
+from src.transformer.activation import Swish
+from src.transformer.subsampling import (
     LinearNoSubsampling,
     EmbedinigNoSubsampling,
     Conv1dSubsampling2,
@@ -9,19 +9,19 @@ from viettts.transformer.subsampling import (
     Conv2dSubsampling6,
     Conv2dSubsampling8,
 )
-from viettts.transformer.embedding import (
+from src.transformer.embedding import (
     PositionalEncoding,
     RelPositionalEncoding,
     WhisperPositionalEncoding,
     LearnablePositionalEncoding,
     NoPositionalEncoding
 )
-from viettts.transformer.attention import (
+from src.transformer.attention import (
     MultiHeadedAttention,
     RelPositionMultiHeadedAttention
 )
-from viettts.transformer.embedding import EspnetRelPositionalEncoding
-from viettts.transformer.subsampling import LegacyLinearNoSubsampling
+from src.transformer.embedding import EspnetRelPositionalEncoding
+from src.transformer.subsampling import LegacyLinearNoSubsampling
 
 
 ACTIVATION_CLASSES = {

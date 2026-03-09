@@ -2,7 +2,7 @@ from typing import Tuple
 import torch.nn as nn
 import torch
 from torch.nn import functional as F
-from viettts.utils.mask import make_pad_mask
+from src.utils.mask import make_pad_mask
 
 
 class InterpolateRegulator(nn.Module):

@@ -35,11 +35,11 @@ tiktoken = "^0.8.0"
 openai-whisper = "^20240930"
 
 [tool.poetry.scripts]
-viettts = "viettts.cli:cli"
+viettts = "src.cli:cli"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.setuptools]
-packages = ["viettts"]
+packages = ["src"]

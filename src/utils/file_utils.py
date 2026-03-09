@@ -7,7 +7,7 @@ from glob import glob
 from loguru import logger
 from huggingface_hub import snapshot_download
 
-from viettts.utils.vad import get_speech
+from src.utils.vad import get_speech
 
 import torchaudio
 import os

@@ -3,9 +3,9 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_sequence, unpad_sequence
-from viettts.utils.common import IGNORE_ID
-from viettts.transformer.label_smoothing_loss import LabelSmoothingLoss
-from viettts.utils.common import th_accuracy
+from src.utils.common import IGNORE_ID
+from src.transformer.label_smoothing_loss import LabelSmoothingLoss
+from src.utils.common import th_accuracy
 
 
 class TransformerLM(torch.nn.Module):

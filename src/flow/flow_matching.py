@@ -3,7 +3,7 @@ from abc import ABC
 import torch
 import torch.nn.functional as F
 
-from viettts.flow.decoder import Decoder
+from src.flow.decoder import Decoder
 
 
 class BASECFM(torch.nn.Module, ABC):

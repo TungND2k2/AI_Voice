@@ -6,7 +6,7 @@ import time
 from torch.nn import functional as F
 from contextlib import nullcontext
 import uuid
-from viettts.utils.common import fade_in_out_audio
+from src.utils.common import fade_in_out_audio
 
 class TTSModel:
     def __init__(

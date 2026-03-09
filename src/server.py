@@ -19,8 +19,8 @@ from fastapi import FastAPI, UploadFile, Form, File, HTTPException
 from fastapi.responses import StreamingResponse, PlainTextResponse, FileResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from viettts.utils.file_utils import load_voices
-from viettts.queue_manager import QueueManager
+from src.utils.file_utils import load_voices
+from src.queue_manager import QueueManager
 
 # ── Config ─────────────────────────────────────────────────────────────────
 VOICE_DIR = "samples"
@@ -269,7 +269,7 @@ async def list_workers():
 def _spawn_worker(idx: int, delay: int = 0) -> subprocess.Popen:
     cwd = os.getcwd()
     proc = subprocess.Popen(
-        [sys.executable, "-m", "viettts.worker",
+        [sys.executable, "-m", "src.worker",
          "--worker-index", str(idx),
          "--model-dir", MODEL_DIR,
          "--startup-delay", str(delay)],

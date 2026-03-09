@@ -4,9 +4,9 @@ from tqdm import tqdm
 from loguru import logger
 from hyperpyyaml import load_hyperpyyaml
 
-from viettts.model import TTSModel
-from viettts.frontend import TTSFrontEnd
-from viettts.utils.file_utils import download_model, save_wav
+from src.model import TTSModel
+from src.frontend import TTSFrontEnd
+from src.utils.file_utils import download_model, save_wav
 
 
 class TTS:

@@ -141,7 +141,7 @@ def _build_ffmpeg(fmt, output_path):
 
 
 def _process(tts, job, worker_id):
-    from viettts.utils.file_utils import load_prompt_speech_from_file
+    from src.utils.file_utils import load_prompt_speech_from_file
 
     prompt = load_prompt_speech_from_file(
         filepath=job["voice_path"], min_duration=3, max_duration=5
@@ -191,7 +191,7 @@ def main():
     _register(worker_id, os.getpid())
 
     logger.info(f"[{worker_id}] Loading TTS model from '{args.model_dir}'...")
-    from viettts.tts import TTS
+    from src.tts import TTS
     tts = TTS(model_dir=args.model_dir)
     logger.success(f"[{worker_id}] Model ready, entering job loop")
 

@@ -9,8 +9,8 @@ from typing import Callable, List, Union
 from functools import partial
 from loguru import logger
 
-from viettts.utils.frontend_utils import split_text, normalize_text, mel_spectrogram
-from viettts.tokenizer.tokenizer import get_tokenizer
+from src.utils.frontend_utils import split_text, normalize_text, mel_spectrogram
+from src.tokenizer.tokenizer import get_tokenizer
 
 class TTSFrontEnd:
     def __init__(

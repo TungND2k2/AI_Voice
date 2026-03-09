@@ -11,7 +11,7 @@ import torch.nn.functional as F
 from conformer import ConformerBlock
 from diffusers.models.activations import get_activation
 
-from viettts.transformer.transformer import BasicTransformerBlock
+from src.transformer.transformer import BasicTransformerBlock
 
 
 class SinusoidalPosEmb(torch.nn.Module):

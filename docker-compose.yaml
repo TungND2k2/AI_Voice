@@ -18,9 +18,9 @@ services:
     volumes:
       - ./pretrained-models:/app/pretrained-models
       - ./samples:/app/samples
-      - ./viettts:/app/viettts
+      - ./src:/app/src
       - ./web:/app/web
-    command: viettts server --host 0.0.0.0 --port 8298
+    command: gunicorn src.server:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8298 --workers 1 --max-requests 1000 --max-requests-jitter 50 --timeout 300 --keep-alive 75 --graceful-timeout 60
 
   tunnel:
     image: cloudflare/cloudflared:latest

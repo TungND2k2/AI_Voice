@@ -12,9 +12,9 @@ from torch.nn.utils import remove_weight_norm
 from torch.nn.utils import weight_norm
 from torch.distributions.uniform import Uniform
 
-from viettts.transformer.activation import Snake
-from viettts.utils.common import get_padding
-from viettts.utils.common import init_weights
+from src.transformer.activation import Snake
+from src.utils.common import get_padding
+from src.utils.common import init_weights
 
 
 """hifigan based generator implementation.

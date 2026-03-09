@@ -6,14 +6,14 @@ import torch
 import torch.utils.checkpoint as ckpt
 import logging
 
-from viettts.transformer.decoder_layer import DecoderLayer
-from viettts.transformer.positionwise_feed_forward import PositionwiseFeedForward
-from viettts.utils.class_utils import (
+from src.transformer.decoder_layer import DecoderLayer
+from src.transformer.positionwise_feed_forward import PositionwiseFeedForward
+from src.utils.class_utils import (
     EMB_CLASSES,
     ATTENTION_CLASSES,
     ACTIVATION_CLASSES,
 )
-from viettts.utils.mask import (subsequent_mask, make_pad_mask)
+from src.utils.mask import (subsequent_mask, make_pad_mask)
 
 
 class TransformerDecoder(torch.nn.Module):
