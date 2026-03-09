@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI_voice — Queue Dashboard</title>
+<style>
+/* ── Reset & Tokens ─────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:       #09090b;
+  --bg2:      #111113;
+  --panel:    #18181b;
+  --panel2:   #1f1f23;
+  --border:   #27272a;
+  --border2:  #3f3f46;
+  --text:     #fafafa;
+  --text2:    #a1a1aa;
+  --text3:    #71717a;
+
+  --indigo:   #6366f1;
+  --indigo2:  #818cf8;
+  --indigobg: rgba(99,102,241,.12);
+
+  --amber:    #f59e0b;
+  --amberbg:  rgba(245,158,11,.1);
+  --blue:     #3b82f6;
+  --bluebg:   rgba(59,130,246,.1);
+  --green:    #22c55e;
+  --greenbg:  rgba(34,197,94,.1);
+  --red:      #ef4444;
+  --redbg:    rgba(239,68,68,.1);
+  --violet:   #a78bfa;
+  --violetbg: rgba(167,139,250,.1);
+
+  --radius-sm: 6px;
+  --radius:    10px;
+  --radius-lg: 14px;
+  --transition: 150ms cubic-bezier(.4,0,.2,1);
+}
+
+html, body { height: 100%; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────────────── */
+.layout { display: flex; min-height: 100vh; }
+
+/* Sidebar */
+.sidebar {
+  width: 220px;
+  background: var(--bg2);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  z-index: 50;
+}
+.sidebar-logo {
+  padding: 20px 16px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.logo-mark {
+  width: 34px; height: 34px;
+  background: linear-gradient(135deg, var(--indigo), var(--violet));
+  border-radius: 9px;
+  display: grid; place-items: center;
+  font-size: 17px;
+  flex-shrink: 0;
+  box-shadow: 0 0 20px rgba(99,102,241,.3);
+}
+.logo-text { font-weight: 700; font-size: 15px; letter-spacing: -.2px; }
+.logo-sub  { font-size: 10px; color: var(--text3); margin-top: 1px; }
+
+.sidebar-nav { padding: 12px 8px; flex: 1; }
+.nav-label { font-size: 10px; font-weight: 600; color: var(--text3);
+  text-transform: uppercase; letter-spacing: .08em;
+  padding: 0 8px; margin: 12px 0 4px; }
+.nav-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 10px; border-radius: var(--radius-sm);
+  color: var(--text2); font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: background var(--transition), color var(--transition);
+  text-decoration: none;
+}
+.nav-item:hover { background: var(--panel); color: var(--text); }
+.nav-item.active { background: var(--indigobg); color: var(--indigo2); }
+.nav-icon { width: 16px; height: 16px; opacity: .8; }
+
+.sidebar-footer {
+  padding: 14px 16px;
+  border-top: 1px solid var(--border);
+  font-size: 11px; color: var(--text3);
+}
+.live-pulse {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; color: var(--green); font-weight: 500;
+}
+.pulse-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 6px var(--green);
+  animation: blink 2s ease-in-out infinite;
+}
+@keyframes blink { 0%,100%{opacity:1}50%{opacity:.3} }
+
+/* Main */
+.main { margin-left: 220px; flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
+
+.topbar {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky; top: 0; z-index: 40;
+}
+.topbar-title { font-weight: 600; font-size: 15px; }
+.topbar-right { display: flex; align-items: center; gap: 12px; }
+.refresh-badge {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 20px; padding: 5px 12px;
+  font-size: 11px; color: var(--text3);
+}
+.spin { width: 10px; height: 10px; border: 1.5px solid var(--border2);
+  border-top-color: var(--indigo); border-radius: 50%;
+  animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.btn-submit {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--indigo); color: white;
+  border: none; border-radius: var(--radius-sm);
+  padding: 7px 14px; font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: opacity var(--transition), transform var(--transition);
+}
+.btn-submit:hover { opacity: .85; transform: translateY(-1px); }
+
+.content { padding: 24px 28px; flex: 1; }
+
+/* ── Stats grid ─────────────────────────────────────────────────────────── */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 22px;
+}
+.stat {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color var(--transition);
+}
+.stat::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+}
+.stat.s-pending::before { background: var(--amber); }
+.stat.s-running::before { background: var(--blue); }
+.stat.s-done::before    { background: var(--green); }
+.stat.s-failed::before  { background: var(--red); }
+.stat:hover { border-color: var(--border2); }
+.stat-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.stat-label { font-size: 11px; font-weight: 500; color: var(--text3);
+  text-transform: uppercase; letter-spacing: .06em; }
+.stat-icon-wrap {
+  width: 30px; height: 30px; border-radius: 8px;
+  display: grid; place-items: center; font-size: 14px;
+}
+.s-pending .stat-icon-wrap { background: var(--amberbg); }
+.s-running .stat-icon-wrap { background: var(--bluebg); }
+.s-done    .stat-icon-wrap { background: var(--greenbg); }
+.s-failed  .stat-icon-wrap { background: var(--redbg); }
+.stat-num {
+  font-size: 2.2rem; font-weight: 700; line-height: 1;
+  letter-spacing: -1px;
+  font-variant-numeric: tabular-nums;
+}
+.s-pending .stat-num { color: var(--amber); }
+.s-running .stat-num { color: var(--blue); }
+.s-done    .stat-num { color: var(--green); }
+.s-failed  .stat-num { color: var(--red); }
+.stat-sub { font-size: 11px; color: var(--text3); margin-top: 4px; }
+
+/* ── Two-column grid ────────────────────────────────────────────────────── */
+.two-col { display: grid; grid-template-columns: 1fr 280px; gap: 16px; margin-bottom: 22px; }
+
+/* ── Workers ────────────────────────────────────────────────────────────── */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.card-title { font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 7px; }
+.card-title svg { opacity: .7; }
+.card-hint { font-size: 11px; color: var(--text3); }
+
+.workers-list { padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.worker-row {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  transition: border-color var(--transition);
+}
+.worker-row.busy   { border-color: rgba(59,130,246,.35); }
+.worker-row.idle   { border-color: var(--border); }
+.worker-row.loading{ border-color: rgba(245,158,11,.3); }
+.worker-row.offline{ opacity: .45; }
+
+.worker-indicator {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.idle    .worker-indicator { background: var(--text3); }
+.busy    .worker-indicator { background: var(--blue); animation: blink .9s infinite; box-shadow: 0 0 5px var(--blue); }
+.loading .worker-indicator { background: var(--amber); animation: blink 1.2s infinite; }
+.offline .worker-indicator { background: #3f3f46; }
+
+.worker-info { flex: 1; min-width: 0; }
+.worker-name { font-weight: 600; font-size: 12px; }
+.worker-detail { font-size: 11px; color: var(--text3); margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.worker-status-badge {
+  font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 20px;
+  flex-shrink: 0;
+}
+.idle    .worker-status-badge { background: var(--panel); color: var(--text3); }
+.busy    .worker-status-badge { background: var(--bluebg); color: var(--blue); }
+.loading .worker-status-badge { background: var(--amberbg); color: var(--amber); }
+.offline .worker-status-badge { background: #1c1c1e; color: var(--text3); }
+
+.worker-progress { margin-top: 6px; height: 2px; background: var(--border); border-radius: 1px; overflow: hidden; }
+.worker-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--blue), var(--indigo2));
+  animation: prog 1.5s ease-in-out infinite alternate;
+}
+@keyframes prog { from{width:10%} to{width:92%} }
+
+/* ── Submit panel ───────────────────────────────────────────────────────── */
+.submit-panel { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.field label { font-size: 11px; font-weight: 500; color: var(--text3);
+  display: block; margin-bottom: 5px; }
+.field input, .field select, .field textarea {
+  width: 100%;
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 12px;
+  padding: 7px 10px;
+  outline: none;
+  transition: border-color var(--transition);
+  font-family: inherit;
+}
+.field input:focus, .field select:focus, .field textarea:focus {
+  border-color: var(--indigo);
+}
+.field textarea { resize: vertical; min-height: 70px; }
+.field select option { background: var(--panel); }
+.btn-go {
+  width: 100%;
+  background: linear-gradient(135deg, var(--indigo), var(--violet));
+  color: white; border: none;
+  border-radius: var(--radius-sm);
+  padding: 9px;
+  font-size: 12px; font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--transition), transform var(--transition);
+}
+.btn-go:hover { opacity: .88; transform: translateY(-1px); }
+.btn-go:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+.submit-result {
+  font-size: 11px; border-radius: var(--radius-sm);
+  padding: 8px 10px; display: none;
+}
+.submit-result.ok  { background: var(--greenbg); color: var(--green); display: block; }
+.submit-result.err { background: var(--redbg); color: var(--red); display: block; }
+
+/* ── Jobs Table ─────────────────────────────────────────────────────────── */
+.table-toolbar {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+}
+.search-wrap { position: relative; flex: 1; max-width: 300px; }
+.search-wrap svg { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); opacity: .4; }
+.search-input {
+  width: 100%;
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text); font-size: 12px;
+  padding: 6px 10px 6px 30px;
+  outline: none;
+  transition: border-color var(--transition);
+}
+.search-input:focus { border-color: var(--indigo); }
+.filter-chips { display: flex; gap: 6px; }
+.chip {
+  padding: 4px 12px; border-radius: 20px;
+  font-size: 11px; font-weight: 500;
+  background: var(--panel2); border: 1px solid var(--border);
+  color: var(--text3); cursor: pointer;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+}
+.chip:hover { border-color: var(--border2); color: var(--text2); }
+.chip.active { background: var(--indigobg); border-color: rgba(99,102,241,.4); color: var(--indigo2); }
+
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+thead th {
+  padding: 9px 14px;
+  text-align: left;
+  font-size: 10.5px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .07em;
+  color: var(--text3);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background var(--transition);
+}
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: var(--panel2); }
+tbody td { padding: 11px 14px; font-size: 12.5px; vertical-align: middle; }
+
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px; border-radius: 20px;
+  font-size: 10.5px; font-weight: 600; white-space: nowrap;
+}
+.dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+.b-pending  { background: var(--amberbg); color: var(--amber); }
+.b-pending .dot { background: var(--amber); }
+.b-running  { background: var(--bluebg); color: var(--blue); }
+.b-running .dot { background: var(--blue); animation: blink .9s infinite; }
+.b-completed{ background: var(--greenbg); color: var(--green); }
+.b-completed .dot { background: var(--green); }
+.b-failed   { background: var(--redbg); color: var(--red); }
+.b-failed .dot { background: var(--red); }
+
+.clip { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text2); }
+.mono { font-family: ui-monospace, 'JetBrains Mono', monospace; font-size: 11px; color: var(--text3); }
+.wk-tag {
+  display: inline-block;
+  background: var(--indigobg); color: var(--indigo2);
+  padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 600;
+  font-family: ui-monospace, monospace;
+}
+.dl-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: var(--greenbg); color: var(--green);
+  border: 1px solid rgba(34,197,94,.2);
+  padding: 5px 11px; border-radius: var(--radius-sm);
+  font-size: 11px; font-weight: 600; text-decoration: none;
+  transition: background var(--transition), transform var(--transition);
+}
+.dl-btn:hover { background: rgba(34,197,94,.18); transform: scale(1.04); }
+.err-msg { color: var(--red); font-size: 11px; max-width: 160px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.empty {
+  text-align: center;
+  padding: 56px 20px;
+  color: var(--text3);
+}
+.empty-icon { font-size: 36px; margin-bottom: 12px; opacity: .35; }
+.empty p { font-size: 13px; }
+.empty code { background: var(--panel2); padding: 2px 6px; border-radius: 4px; font-size: 11px; }
+
+/* ── Modal ──────────────────────────────────────────────────────────────── */
+.modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.7);
+  backdrop-filter: blur(4px);
+  z-index: 100;
+  display: none; place-items: center;
+}
+.modal-backdrop.open { display: grid; }
+.modal {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  width: 480px;
+  max-width: 95vw;
+  animation: modal-in .2s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes modal-in { from{opacity:0;transform:scale(.94)} to{opacity:1;transform:scale(1)} }
+.modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+.modal-title { font-weight: 700; font-size: 16px; }
+.modal-close { background: none; border: none; color: var(--text3); cursor: pointer;
+  font-size: 20px; line-height: 1; transition: color var(--transition); }
+.modal-close:hover { color: var(--text); }
+
+/* ── Scrollbar ──────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 10px; }
+
+/* ── Responsive ─────────────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .two-col { grid-template-columns: 1fr; }
+  .sidebar { display: none; }
+  .main { margin-left: 0; }
+}
+@media (max-width: 700px) {
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+  .content { padding: 16px; }
+  .topbar { padding: 12px 16px; }
+}
+</style>
+</head>
+<body>
+
+<div class="layout">
+<!-- ── Sidebar ─────────────────────────────────────────────── -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-mark">🎙</div>
+    <div>
+      <div class="logo-text">AI_voice</div>
+      <div class="logo-sub">Queue Dashboard</div>
+    </div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="nav-label">Menu</div>
+    <a class="nav-item active" href="/queue">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Dashboard
+    </a>
+    <a class="nav-item" href="/ui" target="_blank">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+      Gradio UI
+    </a>
+    <a class="nav-item" href="/docs" target="_blank">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      API Docs
+    </a>
+
+    <div class="nav-label">System</div>
+    <a class="nav-item" href="/health" target="_blank">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Health
+    </a>
+    <a class="nav-item" href="/v1/voices" target="_blank">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8.56 2.75c4.37 6.03 6.02 9.42 8.03 17.72m2.54-15.38c-3.72 4.35-8.94 5.66-16.88 5.85m19.5 1.9c-3.5-.93-6.63-.82-8.94 0-2.58.92-5.01 2.86-7.44 6.32"/></svg>
+      Voices
+    </a>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="live-pulse"><div class="pulse-dot"></div>Live · refresh 3s</div>
+
+    <!-- VRAM -->
+    <div style="margin-top:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span style="font-size:10px;color:var(--text3);font-weight:500">VRAM GPU</span>
+        <span style="font-size:10px;color:var(--text3)" id="vram-label">–</span>
+      </div>
+      <div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden">
+        <div id="vram-bar" style="height:100%;border-radius:3px;width:0%;transition:width .5s;background:linear-gradient(90deg,#8b5cf6,#6366f1)"></div>
+      </div>
+    </div>
+
+    <!-- Disk -->
+    <div style="margin-top:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span style="font-size:10px;color:var(--text3);font-weight:500">Disk</span>
+        <span style="font-size:10px;color:var(--text3)" id="disk-label">–</span>
+      </div>
+      <div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:5px">
+        <div id="disk-bar" style="height:100%;border-radius:3px;width:0%;transition:width .5s;background:linear-gradient(90deg,var(--indigo),var(--violet))"></div>
+      </div>
+      <div style="font-size:10px;color:var(--text3)" id="audio-label">–</div>
+      <button onclick="manualCleanup(0)" style="margin-top:8px;width:100%;background:var(--redbg);border:1px solid rgba(239,68,68,.25);color:var(--red);border-radius:4px;padding:5px;font-size:10px;cursor:pointer;transition:opacity .15s" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">🗑 Xóa tất cả file đã xong</button>
+      <button onclick="manualCleanup(24)" style="margin-top:5px;width:100%;background:var(--panel);border:1px solid var(--border);color:var(--text3);border-radius:4px;padding:5px;font-size:10px;cursor:pointer;transition:color .15s,border-color .15s" onmouseover="this.style.color='var(--text)';this.style.borderColor='var(--border2)'" onmouseout="this.style.color='var(--text3)';this.style.borderColor='var(--border)'">🗑 Xóa file cũ (&gt;24h)</button>
+    </div>
+
+    <div style="margin-top:8px;font-size:10px;color:var(--text3)" id="last-update">–</div>
+  </div>
+</aside>
+
+<!-- ── Main ───────────────────────────────────────────────── -->
+<div class="main">
+
+  <div class="topbar">
+    <div class="topbar-title">Queue Monitor</div>
+    <div class="topbar-right">
+      <div class="refresh-badge">
+        <div class="spin"></div>
+        <span id="refresh-ts">Đang tải...</span>
+      </div>
+      <button class="btn-submit" onclick="openModal()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Tạo Job
+      </button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat s-pending">
+        <div class="stat-header">
+          <span class="stat-label">Đang chờ</span>
+          <div class="stat-icon-wrap">⏳</div>
+        </div>
+        <div class="stat-num" id="n-pending">–</div>
+        <div class="stat-sub">jobs trong hàng đợi</div>
+      </div>
+      <div class="stat s-running">
+        <div class="stat-header">
+          <span class="stat-label">Đang xử lý</span>
+          <div class="stat-icon-wrap">⚡</div>
+        </div>
+        <div class="stat-num" id="n-running">–</div>
+        <div class="stat-sub">jobs trên GPU</div>
+      </div>
+      <div class="stat s-done">
+        <div class="stat-header">
+          <span class="stat-label">Hoàn thành</span>
+          <div class="stat-icon-wrap">✅</div>
+        </div>
+        <div class="stat-num" id="n-completed">–</div>
+        <div class="stat-sub">tổng đã hoàn thành</div>
+      </div>
+      <div class="stat s-failed">
+        <div class="stat-header">
+          <span class="stat-label">Thất bại</span>
+          <div class="stat-icon-wrap">❌</div>
+        </div>
+        <div class="stat-num" id="n-failed">–</div>
+        <div class="stat-sub">cần kiểm tra</div>
+      </div>
+    </div>
+
+    <!-- Workers full-width -->
+    <div class="card" style="margin-bottom:22px">
+      <div class="card-header">
+        <div class="card-title">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+          GPU Workers
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="card-hint" id="workers-hint">–</span>
+          <button onclick="addWorker()" id="btn-add-worker" title="Thêm worker" style="display:inline-flex;align-items:center;gap:5px;background:var(--greenbg);border:1px solid rgba(34,197,94,.25);color:var(--green);padding:4px 10px;border-radius:var(--radius-sm);font-size:11px;font-weight:600;cursor:pointer;transition:opacity .15s" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Thêm Worker
+          </button>
+        </div>
+      </div>
+      <div class="workers-list" id="workers-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));padding:12px;gap:8px">
+        <div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Đang tải workers...</div>
+      </div>
+    </div>
+
+    <!-- Jobs Table -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
+          Danh sách Jobs
+        </div>
+      </div>
+      <div class="table-toolbar">
+        <div class="search-wrap">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input class="search-input" id="search" placeholder="Tìm văn bản, giọng, job ID..." oninput="renderTable()">
+        </div>
+        <div class="filter-chips">
+          <span class="chip active" data-filter="all" onclick="setFilter(this)">Tất cả</span>
+          <span class="chip" data-filter="pending"   onclick="setFilter(this)">Chờ</span>
+          <span class="chip" data-filter="running"   onclick="setFilter(this)">Đang xử lý</span>
+          <span class="chip" data-filter="completed" onclick="setFilter(this)">Hoàn thành</span>
+          <span class="chip" data-filter="failed"    onclick="setFilter(this)">Thất bại</span>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Job ID</th><th>Trạng thái</th><th>Worker</th>
+              <th>Giọng</th><th>Văn bản</th><th>Tốc độ</th><th>Format</th>
+              <th>Tạo lúc</th><th>Thời gian</th><th>Thao tác</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div><!-- /content -->
+</div><!-- /main -->
+</div><!-- /layout -->
+
+<!-- ── Drawer ────────────────────────────────────────────── -->
+<div id="drawer-backdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;backdrop-filter:blur(3px)" onclick="closeDrawer(event)">
+  <div id="drawer" style="position:absolute;top:0;right:0;bottom:0;width:min(680px,100vw);background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;animation:drawer-in .22s cubic-bezier(.4,0,.2,1)" onclick="event.stopPropagation()">
+
+    <!-- Drawer header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 24px;border-bottom:1px solid var(--border);flex-shrink:0">
+      <div>
+        <div style="font-weight:700;font-size:16px">🚀 Tạo Job TTS</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">Văn bản sẽ được đẩy vào hàng đợi và xử lý bởi worker rảnh nhất</div>
+      </div>
+      <button onclick="closeDrawer()" style="background:var(--panel2);border:1px solid var(--border);color:var(--text2);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:18px;display:grid;place-items:center;transition:background .15s" onmouseover="this.style.background='var(--border)'" onmouseout="this.style.background='var(--panel2)'">×</button>
+    </div>
+
+    <!-- Drawer body (scrollable) -->
+    <div style="flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:16px">
+
+      <!-- Text area — large -->
+      <div class="field">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+          <label style="margin:0;font-size:12px;font-weight:600;color:var(--text2)">Văn bản</label>
+          <span style="font-size:11px;color:var(--text3)" id="char-count">0 ký tự</span>
+        </div>
+        <textarea id="m-text"
+          style="width:100%;min-height:340px;max-height:60vh;resize:vertical;background:var(--panel2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:13px;line-height:1.6;padding:12px 14px;outline:none;font-family:inherit;transition:border-color .15s"
+          placeholder="Nhập hoặc dán văn bản cần đọc (hỗ trợ 50.000+ ký tự)..."
+          oninput="updateCharCount()"
+          onfocus="this.style.borderColor='var(--indigo)'"
+          onblur="this.style.borderColor='var(--border)'"></textarea>
+        <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">
+          <button onclick="document.getElementById('m-text').value='';updateCharCount()" style="font-size:10px;padding:3px 9px;background:var(--panel2);border:1px solid var(--border);color:var(--text3);border-radius:4px;cursor:pointer">Xóa</button>
+          <label style="font-size:10px;padding:3px 9px;background:var(--panel2);border:1px solid var(--border);color:var(--text3);border-radius:4px;cursor:pointer">
+            📁 Tải file .txt
+            <input type="file" accept=".txt" style="display:none" onchange="loadTextFile(event)">
+          </label>
+        </div>
+      </div>
+
+      <!-- Options row -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 120px;gap:12px">
+        <div class="field">
+          <label>Giọng đọc</label>
+          <select id="m-voice" style="background:var(--panel2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:13px;padding:8px 10px;outline:none;width:100%"></select>
+        </div>
+        <div class="field">
+          <label>Format đầu ra</label>
+          <select id="m-fmt" style="background:var(--panel2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:13px;padding:8px 10px;outline:none;width:100%">
+            <option value="mp3">MP3 — nhỏ gọn</option>
+            <option value="wav">WAV — lossless</option>
+            <option value="flac">FLAC — nén lossless</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Tốc độ</label>
+          <input type="number" id="m-speed" value="1.0" min="0.5" max="2.0" step="0.1"
+            style="background:var(--panel2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:13px;padding:8px 10px;outline:none;width:100%">
+        </div>
+      </div>
+
+      <!-- Result -->
+      <div class="submit-result" id="m-result"></div>
+    </div>
+
+    <!-- Drawer footer -->
+    <div style="padding:16px 24px;border-top:1px solid var(--border);flex-shrink:0;display:flex;gap:10px;align-items:center">
+      <button class="btn-go" id="m-btn" onclick="submitDrawerJob()" style="flex:1;padding:12px">
+        🚀 Đẩy vào hàng đợi
+      </button>
+      <button onclick="closeDrawer()" style="padding:12px 20px;background:var(--panel2);border:1px solid var(--border);color:var(--text2);border-radius:var(--radius-sm);font-size:13px;font-weight:500;cursor:pointer;transition:background .15s" onmouseover="this.style.background='var(--border)'" onmouseout="this.style.background='var(--panel2)'">Hủy</button>
+    </div>
+  </div>
+</div>
+
+<style>
+@keyframes drawer-in { from{transform:translateX(100%)} to{transform:translateX(0)} }
+</style>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let allJobs = [];
+let currentFilter = 'all';
+let voices = [];
+
+// ── Utils ──────────────────────────────────────────────────────────────────
+const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+function timeAgo(iso) {
+  if (!iso) return '–';
+  const s = Math.floor((Date.now() - new Date(iso.endsWith('Z')?iso:iso+'Z')) / 1000);
+  if (s < 5)    return 'vừa xong';
+  if (s < 60)   return s + 'g trước';
+  if (s < 3600) return Math.floor(s/60) + 'ph trước';
+  const d = new Date(iso.endsWith('Z')?iso:iso+'Z');
+  return d.toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'});
+}
+function elapsed(a, b) {
+  if (!a) return '–';
+  const ms = (b ? new Date(b.endsWith('Z')?b:b+'Z') : new Date()) - new Date(a.endsWith('Z')?a:a+'Z');
+  if (ms < 0) return '–';
+  return (ms/1000).toFixed(1) + 's';
+}
+const statusLabel = s => ({pending:'Chờ',running:'Đang xử lý',completed:'Hoàn thành',failed:'Thất bại'}[s]||s);
+const workerLabel = s => ({idle:'Sẵn sàng',busy:'Đang xử lý',loading:'Khởi tải',offline:'Offline'}[s]||s);
+function setNum(id, v) {
+  const el = document.getElementById(id);
+  if (el && el.textContent != String(v)) el.textContent = v;
+}
+
+// ── Filter ─────────────────────────────────────────────────────────────────
+function setFilter(el) {
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  currentFilter = el.dataset.filter;
+  renderTable();
+}
+
+// ── Render jobs table ──────────────────────────────────────────────────────
+function renderTable() {
+  const q = (document.getElementById('search').value || '').toLowerCase();
+  let jobs = allJobs;
+  if (currentFilter !== 'all') jobs = jobs.filter(j => j.status === currentFilter);
+  if (q) jobs = jobs.filter(j =>
+    (j.text||'').toLowerCase().includes(q) ||
+    (j.voice||'').toLowerCase().includes(q) ||
+    (j.id||'').toLowerCase().includes(q)
+  );
+
+  if (!jobs.length) {
+    document.getElementById('tbody').innerHTML = `
+      <tr><td colspan="10">
+        <div class="empty">
+          <div class="empty-icon">📭</div>
+          <p>${currentFilter==='all'&&!q ? 'Chưa có job nào. Nhấn <strong>Tạo Job</strong> hoặc gọi <code>POST /v1/audio/speech/async</code>' : 'Không tìm thấy kết quả phù hợp.'}</p>
+        </div>
+      </td></tr>`;
+    return;
+  }
+
+  document.getElementById('tbody').innerHTML = jobs.map(j => {
+    const pos = j.status==='pending'&&j.position ? `<span style="font-size:9px;opacity:.6;margin-left:3px">#${j.position}</span>` : '';
+    const badge = `<span class="badge b-${j.status}"><span class="dot"></span>${statusLabel(j.status)}${pos}</span>`;
+    const wk = j.worker_id ? `<span class="wk-tag">${esc(j.worker_id.replace('worker-','w'))}</span>` : '<span style="color:var(--text3)">–</span>';
+
+    let action = '';
+    if (j.status==='completed')
+      action = `<a class="dl-btn" href="/v1/jobs/${j.id}/audio">⬇ Baixar</a>`;
+    else if (j.status==='failed')
+      action = `<span class="err-msg" title="${esc(j.error)}">${esc(j.error||'Error')}</span>`;
+    else if (j.status==='running')
+      action = `<span style="color:var(--blue);font-size:11px">⚡ ${elapsed(j.started_at,'')}</span>`;
+
+    return `<tr>
+      <td><span class="mono" title="${j.id}">${j.id.slice(0,8)}…</span></td>
+      <td>${badge}</td>
+      <td>${wk}</td>
+      <td><span style="font-size:12px">${esc(j.voice||'–')}</span></td>
+      <td><div class="clip" title="${esc(j.text)}">${esc(j.text)}</div></td>
+      <td><span class="mono">${j.speed}×</span></td>
+      <td><span class="mono" style="text-transform:uppercase">${j.response_format||'mp3'}</span></td>
+      <td><span class="mono" title="${j.created_at||''}">${timeAgo(j.created_at)}</span></td>
+      <td><span class="mono">${elapsed(j.started_at,j.completed_at)}</span></td>
+      <td>${action}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Render workers ─────────────────────────────────────────────────────────
+function renderWorkers(workers) {
+  const busy = workers.filter(w=>w.status==='busy').length;
+  const idle = workers.filter(w=>w.status==='idle').length;
+  document.getElementById('workers-hint').textContent =
+    `${busy} đang chạy · ${idle} sẵn sàng`;
+
+  if (!workers.length) {
+    document.getElementById('workers-list').innerHTML =
+      '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Không có worker nào.</div>';
+    return;
+  }
+
+  document.getElementById('workers-list').innerHTML = workers.map(w => {
+    const st = w.status||'offline';
+    const hb = w.heartbeat_at ? timeAgo(w.heartbeat_at) : '–';
+    const detail = st==='busy' && w.current_job_id
+      ? `Job ${w.current_job_id.slice(0,8)}… · ${elapsed(w.started_at,'')} · HB ${hb}`
+      : `PID ${w.pid||'–'} · HB ${hb}`;
+    const prog = st==='busy'
+      ? `<div class="worker-progress"><div class="worker-progress-fill"></div></div>` : '';
+    const canRemove = st !== 'busy';
+    const removeBtn = `<button onclick="removeWorker('${esc(w.id)}')" title="Xóa worker" ${canRemove?'':'disabled'} style="background:none;border:1px solid ${canRemove?'rgba(239,68,68,.3)':'var(--border)'};color:${canRemove?'var(--red)':'var(--text3)'};width:22px;height:22px;border-radius:4px;cursor:${canRemove?'pointer':'not-allowed'};font-size:13px;line-height:1;flex-shrink:0;opacity:${canRemove?'1':'.4'}" onmouseover="if(!this.disabled)this.style.background='var(--redbg)'" onmouseout="this.style.background='none'">×</button>`;
+    return `<div class="worker-row ${st}">
+      <div class="worker-indicator"></div>
+      <div class="worker-info">
+        <div class="worker-name">${esc(w.id)}</div>
+        <div class="worker-detail">${esc(detail)}</div>
+        ${prog}
+      </div>
+      <span class="worker-status-badge">${workerLabel(st)}</span>
+      ${removeBtn}
+    </div>`;
+  }).join('');
+}
+
+// ── Worker management ──────────────────────────────────────────────────────
+async function addWorker() {
+  const btn = document.getElementById('btn-add-worker');
+  btn.disabled = true;
+  btn.style.opacity = '.5';
+  try {
+    const r = await fetch('/v1/workers', {method:'POST'});
+    const d = await r.json();
+    if (r.ok) {
+      await refresh();
+    } else {
+      alert('❌ ' + (d.detail || 'Lỗi khi thêm worker'));
+    }
+  } catch(e) {
+    alert('❌ ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.style.opacity = '1';
+  }
+}
+
+async function removeWorker(workerId) {
+  if (!confirm(`Xóa ${workerId}? Job đang chạy (nếu có) sẽ được đẩy lại hàng đợi.`)) return;
+  try {
+    const r = await fetch(`/v1/workers/${encodeURIComponent(workerId)}`, {method:'DELETE'});
+    const d = await r.json();
+    if (r.ok) {
+      await refresh();
+    } else {
+      alert('❌ ' + (d.detail || 'Lỗi khi xóa worker'));
+    }
+  } catch(e) {
+    alert('❌ ' + e.message);
+  }
+}
+
+// ── Main refresh loop ──────────────────────────────────────────────────────
+async function manualCleanup(maxAgeHours) {
+  const label = maxAgeHours === 0 ? 'tất cả file đã hoàn thành' : `file cũ hơn ${maxAgeHours}h`;
+  if (!confirm(`Xác nhận xóa ${label}?`)) return;
+  try {
+    const r = await fetch(`/v1/storage/cleanup?max_age_hours=${maxAgeHours}`, {method:'POST'});
+    const d = await r.json();
+    alert(`✅ Đã xóa ${d.deleted_files} file, giải phóng ${d.freed_mb} MB`);
+    await refresh();
+  } catch(e) { alert('❌ Lỗi: ' + e.message); }
+}
+
+async function refresh() {
+  try {
+    const [jr, sr, wr, stor] = await Promise.all([
+      fetch('/v1/jobs'), fetch('/v1/jobs/stats'), fetch('/v1/workers'), fetch('/v1/storage')
+    ]);
+    allJobs = await jr.json();
+    const s  = await sr.json();
+    const ws = await wr.json();
+    const st = await stor.json();
+
+    // VRAM bar
+    const vbar = document.getElementById('vram-bar');
+    const vpct = st.vram_pct || 0;
+    if (vbar) {
+      vbar.style.width = vpct + '%';
+      vbar.style.background = vpct > 90 ? 'var(--red)' : vpct > 75 ? 'var(--amber)' : 'linear-gradient(90deg,#8b5cf6,#6366f1)';
+    }
+    const vl = document.getElementById('vram-label');
+    if (vl) {
+      const usedG = (st.vram_used_mb/1024).toFixed(1);
+      const totG  = (st.vram_total_mb/1024).toFixed(1);
+      vl.textContent = st.vram_total_mb ? `${usedG}/${totG} GB` : '–';
+    }
+
+    // Disk bar
+    const pct = st.disk_pct || 0;
+    const bar = document.getElementById('disk-bar');
+    if (bar) {
+      bar.style.width = pct + '%';
+      bar.style.background = pct > 85 ? 'var(--red)' : pct > 65 ? 'var(--amber)' : 'linear-gradient(90deg,var(--indigo),var(--violet))';
+    }
+    const dl = document.getElementById('disk-label');
+    if (dl) dl.textContent = `${st.disk_used_gb}/${st.disk_total_gb} GB`;
+    const al = document.getElementById('audio-label');
+    if (al) al.textContent = `Audio: ${st.audio_files} file · ${st.audio_size_mb} MB`;
+
+    setNum('n-pending',   s.pending);
+    setNum('n-running',   s.running);
+    setNum('n-completed', s.completed);
+    setNum('n-failed',    s.failed);
+
+    renderWorkers(ws);
+    renderTable();
+
+    const now = new Date().toLocaleTimeString('vi-VN');
+    document.getElementById('refresh-ts').textContent = now;
+    document.getElementById('last-update').textContent = `Lần cuối: ${now}`;
+  } catch(e) {
+    document.getElementById('refresh-ts').textContent = '⚠ Lỗi';
+  }
+}
+
+// ── Load voices into selects ───────────────────────────────────────────────
+async function loadVoices() {
+  try {
+    voices = await (await fetch('/v1/voices')).json();
+    const el = document.getElementById('m-voice');
+    if (el) el.innerHTML = voices.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+  } catch(e) {}
+}
+
+// ── Char counter ───────────────────────────────────────────────────────────
+function updateCharCount() {
+  const len = (document.getElementById('m-text').value||'').length;
+  const el = document.getElementById('char-count');
+  if (!el) return;
+  const fmt = len >= 1000 ? (len/1000).toFixed(1)+'k' : len;
+  el.textContent = fmt + ' ký tự';
+  el.style.color = len > 80000 ? 'var(--amber)' : 'var(--text3)';
+}
+
+function loadTextFile(ev) {
+  const file = ev.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('m-text').value = e.target.result;
+    updateCharCount();
+  };
+  reader.readAsText(file, 'UTF-8');
+  ev.target.value = '';
+}
+
+// ── Submit job ─────────────────────────────────────────────────────────────
+function showResult(el, msg, ok) {
+  el.textContent = msg;
+  el.className = 'submit-result ' + (ok ? 'ok' : 'err');
+  if (ok) setTimeout(() => { el.className = 'submit-result'; }, 5000);
+}
+
+async function submitDrawerJob() {
+  const text  = document.getElementById('m-text').value;
+  const voice = document.getElementById('m-voice').value;
+  const speed = document.getElementById('m-speed').value;
+  const fmt   = document.getElementById('m-fmt').value;
+  const resultEl = document.getElementById('m-result');
+  const btnEl    = document.getElementById('m-btn');
+
+  if (!text.trim()) { showResult(resultEl, '⚠ Vui lòng nhập văn bản', false); return; }
+  btnEl.disabled = true;
+  btnEl.textContent = '⏳ Đang đẩy...';
+  try {
+    const res = await fetch('/v1/audio/speech/async', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ input: text, voice, speed: parseFloat(speed), response_format: fmt })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      showResult(resultEl, `✅ Job ${data.job_id.slice(0,8)}… đã vào hàng đợi · vị trí #${data.position||1}`, true);
+      await refresh();
+    } else {
+      showResult(resultEl, `❌ ${data.detail||'Lỗi không xác định'}`, false);
+    }
+  } catch(e) {
+    showResult(resultEl, `❌ ${e.message}`, false);
+  } finally {
+    btnEl.disabled = false;
+    btnEl.textContent = '🚀 Đẩy vào hàng đợi';
+  }
+}
+
+// ── Drawer ─────────────────────────────────────────────────────────────────
+function openModal() {
+  document.getElementById('drawer-backdrop').style.display = 'block';
+  setTimeout(() => document.getElementById('m-text').focus(), 50);
+}
+function closeDrawer(e) {
+  if (!e || e.target === document.getElementById('drawer-backdrop'))
+    document.getElementById('drawer-backdrop').style.display = 'none';
+}
+document.addEventListener('keydown', e => { if (e.key==='Escape') closeDrawer(); });
+
+// ── Init ───────────────────────────────────────────────────────────────────
+loadVoices();
+refresh();
+setInterval(refresh, 3000);
+</script>
+</body>
+</html>

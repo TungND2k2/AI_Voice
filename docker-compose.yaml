@@ -1,0 +1,31 @@
+services:
+  api:
+    image: viet-tts:latest
+    build: .
+    restart: always
+    container_name: viet-tts-service
+    ports:
+      - 8298:8298
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      - TTS_NUM_WORKERS=1
+    volumes:
+      - ./pretrained-models:/app/pretrained-models
+      - ./samples:/app/samples
+      - ./viettts:/app/viettts
+      - ./web:/app/web
+    command: viettts server --host 0.0.0.0 --port 8298
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    restart: always
+    container_name: viet-tts-tunnel
+    depends_on:
+      - api
+    command: tunnel --no-autoupdate --url http://api:8298
