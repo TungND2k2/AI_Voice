@@ -55,6 +55,7 @@ class OpenAITTSRequest(BaseModel):
     voice: str = list(VOICE_MAP)[0] if VOICE_MAP else "0"
     response_format: str = "mp3"
     speed: float = 1.0
+    filename: str | None = None
 
 
 class AsyncTTSRequest(BaseModel):
@@ -63,6 +64,7 @@ class AsyncTTSRequest(BaseModel):
     voice: str = list(VOICE_MAP)[0] if VOICE_MAP else "0"
     response_format: str = "mp3"
     speed: float = 1.0
+    filename: str | None = None
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
@@ -131,14 +133,20 @@ async def openai_api_tts(req: OpenAITTSRequest):
         voice_path=voice_file,
         speed=req.speed,
         response_format=req.response_format,
+        filename=req.filename,
     )
     job = await _wait_for_job(job_id)
+
+    dl_name = req.filename or f"tts_{job_id[:8]}"
+    if not dl_name.endswith(f".{req.response_format}"):
+        dl_name = f"{dl_name}.{req.response_format}"
 
     with open(job["output_path"], "rb") as f:
         content = f.read()
     return StreamingResponse(
         content=iter([content]),
         media_type=_media_type(req.response_format),
+        headers={"Content-Disposition": f'attachment; filename="{dl_name}"'},
     )
 
 
@@ -151,6 +159,7 @@ async def tts(
     speed: float = Form(1.0),
     audio_url: str = Form(None),
     audio_file: UploadFile = File(None),
+    filename: str = Form(None),
 ):
     voice_file = None
     temp_path = None
@@ -190,6 +199,7 @@ async def tts(
         voice_path=voice_file,
         speed=speed,
         response_format="mp3",
+        filename=filename,
     )
     try:
         job = await _wait_for_job(job_id)
@@ -197,10 +207,14 @@ async def tts(
         if temp_path and os.path.exists(temp_path):
             os.unlink(temp_path)
 
+    dl_name = filename or f"tts_{job_id[:8]}"
+    if not dl_name.endswith(".mp3"):
+        dl_name = f"{dl_name}.mp3"
+
     return FileResponse(
         path=job["output_path"],
         media_type="audio/mpeg",
-        filename=f"tts_{job_id[:8]}.mp3",
+        filename=dl_name,
     )
 
 
@@ -216,6 +230,7 @@ async def async_openai_tts(req: AsyncTTSRequest):
         voice_path=voice_file,
         speed=req.speed,
         response_format=req.response_format,
+        filename=req.filename,
     )
     return {"job_id": job_id, "status": "pending",
             "position": queue_manager.get_position(job_id)}
@@ -239,6 +254,10 @@ async def get_job(job_id: str):
         raise HTTPException(404, "Job not found")
     if job["status"] == "pending":
         job["position"] = queue_manager.get_position(job_id)
+    # Hide sensitive fields
+    text = job.get("text") or ""
+    job["text"] = f"[{len(text)} ký tự]"
+    job.pop("voice_path", None)
     return job
 
 
@@ -253,10 +272,13 @@ async def get_job_audio(job_id: str):
     if not path or not os.path.exists(path):
         raise HTTPException(404, "Audio file not found on disk")
     fmt = job.get("response_format", "mp3")
+    dl_name = job.get("filename") or job_id
+    if not dl_name.endswith(f".{fmt}"):
+        dl_name = f"{dl_name}.{fmt}"
     return FileResponse(
         path=path,
         media_type=_media_type(fmt),
-        filename=f"{job_id}.{fmt}",
+        filename=dl_name,
     )
 
 
@@ -405,10 +427,13 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .wk-meta{font-size:.75rem;color:var(--muted);}
 .wk-job{font-size:.75rem;color:var(--running-fg);margin-top:6px;
   font-family:'JetBrains Mono',monospace;}
-.wk-progress{height:3px;background:var(--border);border-radius:2px;margin-top:10px;overflow:hidden;}
+.wk-progress{height:4px;background:var(--border);border-radius:2px;margin-top:10px;overflow:hidden;}
 .wk-progress-fill{height:100%;background:linear-gradient(90deg,var(--running-dot),var(--accent));
-  animation:progress-anim 1.5s ease-in-out infinite alternate;border-radius:2px;}
-@keyframes progress-anim{from{width:15%}to{width:95%}}
+  border-radius:2px;transition:width .5s ease;}
+.progress-bar{height:4px;background:var(--border);border-radius:2px;overflow:hidden;width:100%;}
+.progress-bar-fill{height:100%;background:linear-gradient(90deg,var(--running-dot),var(--accent));
+  border-radius:2px;transition:width .5s ease;}
+.progress-text{font-size:.7rem;color:var(--running-fg);font-weight:600;font-family:'JetBrains Mono',monospace;}
 
 /* Table */
 .table-card{background:var(--surface);border:1px solid var(--border);
@@ -514,13 +539,13 @@ tbody td{padding:11px 14px;font-size:.82rem;vertical-align:middle;}
       <table>
         <thead>
           <tr>
-            <th>Job ID</th><th>Trạng thái</th><th>Worker</th>
-            <th>Giọng</th><th>Văn bản</th><th>Tốc độ</th><th>Format</th>
+            <th>Job ID</th><th>Tên</th><th>Trạng thái</th><th>Worker</th>
+            <th>Giọng</th><th>Tiến trình</th><th>Tốc độ</th><th>Format</th>
             <th>Tạo lúc</th><th>Xử lý</th><th>Thao tác</th>
           </tr>
         </thead>
         <tbody id="tbody">
-          <tr><td colspan="10"><div class="empty-state"><div class="icon">📭</div><p>Chưa có job nào</p></div></td></tr>
+          <tr><td colspan="11"><div class="empty-state"><div class="icon">📭</div><p>Chưa có job nào</p></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -565,13 +590,18 @@ async function refresh() {
     setNum('n-completed', s.completed);
     setNum('n-failed',    s.failed);
 
+    // Build job progress lookup from running jobs
+    const jobProgress = {};
+    jobs.forEach(j => { if (j.status==='running') jobProgress[j.id] = j.progress||0; });
+
     // Workers grid
     const wHtml = workers.length ? workers.map(w => {
       const st = w.status || 'offline';
+      const pct = w.current_job_id ? Math.round(jobProgress[w.current_job_id]||0) : 0;
       const jobLabel = w.current_job_id
-        ? `<div class="wk-job">▶ ${w.current_job_id.slice(0,8)}… ${elapsed(w.started_at||'',null)}</div>` : '';
+        ? `<div class="wk-job">▶ ${w.current_job_id.slice(0,8)}… <span class="progress-text">${pct}%</span></div>` : '';
       const progress = st==='busy'
-        ? `<div class="wk-progress"><div class="wk-progress-fill"></div></div>` : '';
+        ? `<div class="wk-progress"><div class="wk-progress-fill" style="width:${pct}%"></div></div>` : '';
       const hb = w.heartbeat_at ? timeAgo(w.heartbeat_at) : '–';
       return `<div class="worker-card ${st}">
         <div class="wk-header">
@@ -597,12 +627,18 @@ async function refresh() {
         action = `<span class="err-text" title="${esc(j.error)}">${esc(j.error||'Lỗi')}</span>`;
       else if (j.status==='running')
         action = `<span style="color:var(--running-fg);font-size:.72rem">⚡ ${elapsed(j.started_at,'')}</span>`;
+      const pct = Math.round(j.progress||0);
+      const progressCell = j.status==='running'
+        ? `<div style="min-width:80px"><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span class="progress-text">${pct}%</span></div><div class="progress-bar"><div class="progress-bar-fill" style="width:${pct}%"></div></div></div>`
+        : j.status==='completed' ? '<span class="progress-text" style="color:var(--done-fg)">100%</span>'
+        : `<span class="mono" style="font-size:.78rem">${esc(j.text)}</span>`;
       return `<tr>
         <td><span class="mono" title="${j.id}">${j.id.slice(0,8)}…</span></td>
+        <td><span style="font-size:.8rem" title="${esc(j.filename||'')}">${esc(j.filename||'–')}</span></td>
         <td>${badge}</td>
         <td>${wkCell}</td>
         <td><span style="font-size:.8rem">${esc(j.voice||'–')}</span></td>
-        <td><div class="text-clip" title="${esc(j.text)}">${esc(j.text)}</div></td>
+        <td>${progressCell}</td>
         <td><span class="mono">${j.speed}×</span></td>
         <td><span class="mono" style="text-transform:uppercase;font-size:.68rem">${j.response_format||'mp3'}</span></td>
         <td><span title="${j.created_at||''}" style="font-size:.78rem;color:var(--muted)">${timeAgo(j.created_at)}</span></td>
@@ -611,7 +647,7 @@ async function refresh() {
       </tr>`;
     }).join('');
     document.getElementById('tbody').innerHTML = rows ||
-      `<tr><td colspan="10"><div class="empty-state"><div class="icon">📭</div><p>Chưa có job nào. Gửi request đến <code>/v1/audio/speech/async</code> để bắt đầu.</p></div></td></tr>`;
+      `<tr><td colspan="11"><div class="empty-state"><div class="icon">📭</div><p>Chưa có job nào. Gửi request đến <code>/v1/audio/speech/async</code> để bắt đầu.</p></div></td></tr>`;
 
     const now = new Date().toLocaleTimeString('vi-VN');
     document.getElementById('refresh-ts').textContent = `Cập nhật ${now}`;
@@ -651,7 +687,9 @@ async def startup():
         logger.info(f"[Server] Launched worker-{i} (PID {proc.pid}, delay={delay}s)")
     _next_worker_idx = NUM_WORKERS
 
-    # Supervisor: restart dead workers + cleanup stale jobs + periodic file cleanup
+    # Supervisor: restart dead workers + kill stale workers + cleanup
+    HEARTBEAT_TIMEOUT = 120  # seconds — kill worker if no heartbeat for this long
+
     def _supervisor():
         last_cleanup = 0
         while True:
@@ -660,18 +698,46 @@ async def startup():
             if time.time() - last_cleanup > 3600:
                 queue_manager.cleanup_old_files(max_age_hours=24)
                 last_cleanup = time.time()
+
             with _worker_lock:
                 snapshot = list(_worker_procs.items())
-            dead = [(idx, proc) for idx, proc in snapshot if proc.poll() is not None]
-            for restart_idx, (idx, proc) in enumerate(dead):
+
+            to_restart = []
+            for idx, proc in snapshot:
+                worker_id = f"worker-{idx}"
+                # Case 1: process already dead
+                if proc.poll() is not None:
+                    logger.warning(f"[Server] {worker_id} died (exit={proc.returncode})")
+                    to_restart.append((idx, proc))
+                    continue
+                # Case 2: process alive but heartbeat stale → zombie, kill it
+                worker_info = queue_manager.get_worker(worker_id)
+                if worker_info and worker_info.get("status") in ("busy", "idle"):
+                    hb = worker_info.get("heartbeat_at")
+                    if hb:
+                        try:
+                            from datetime import datetime
+                            hb_age = datetime.utcnow().timestamp() - datetime.fromisoformat(hb).timestamp()
+                            if hb_age > HEARTBEAT_TIMEOUT:
+                                logger.warning(
+                                    f"[Server] {worker_id} stale heartbeat ({hb_age:.0f}s), "
+                                    f"killing PID {proc.pid}"
+                                )
+                                proc.kill()  # SIGKILL — force release GPU memory
+                                proc.wait(timeout=10)
+                                to_restart.append((idx, proc))
+                        except Exception as e:
+                            logger.error(f"[Server] heartbeat check error for {worker_id}: {e}")
+
+            for restart_idx, (idx, proc) in enumerate(to_restart):
                 if restart_idx > 0:
                     time.sleep(WORKER_STARTUP_DELAY)
-                logger.warning(f"[Server] worker-{idx} died (exit={proc.returncode}), restarting...")
-                queue_manager.reset_worker_jobs(f"worker-{idx}")
+                worker_id = f"worker-{idx}"
+                queue_manager.reset_worker_jobs(worker_id)
                 new_proc = _spawn_worker(idx, delay=0)
                 with _worker_lock:
                     _worker_procs[idx] = new_proc
-                logger.info(f"[Server] Restarted worker-{idx} (PID {new_proc.pid})")
+                logger.info(f"[Server] Restarted {worker_id} (PID {new_proc.pid})")
 
     threading.Thread(target=_supervisor, daemon=True).start()
 

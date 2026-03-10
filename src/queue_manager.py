@@ -38,7 +38,9 @@ class QueueManager:
                 started_at TEXT,
                 completed_at TEXT,
                 output_path TEXT,
-                error TEXT
+                error TEXT,
+                progress REAL DEFAULT 0,
+                filename TEXT
             );
             CREATE TABLE IF NOT EXISTS workers (
                 id TEXT PRIMARY KEY,
@@ -49,25 +51,32 @@ class QueueManager:
                 heartbeat_at TEXT
             );
         """)
-        # Migration: add worker_id column if missing
-        try:
-            conn.execute("ALTER TABLE jobs ADD COLUMN worker_id TEXT")
-            conn.commit()
-        except Exception:
-            pass
+        # Migrations
+        for col, typ in [("worker_id", "TEXT"), ("progress", "REAL DEFAULT 0"), ("filename", "TEXT")]:
+            try:
+                conn.execute(f"ALTER TABLE jobs ADD COLUMN {col} {typ}")
+                conn.commit()
+            except Exception:
+                pass
         conn.close()
 
-    def add_job(self, text, voice, voice_path, speed=1.0, response_format="mp3"):
+    def add_job(self, text, voice, voice_path, speed=1.0, response_format="mp3", filename=None):
         job_id = str(uuid.uuid4())
         conn = _connect()
         conn.execute("""
-            INSERT INTO jobs (id, text, voice, voice_path, speed, response_format, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO jobs (id, text, voice, voice_path, speed, response_format, created_at, filename)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (job_id, text, voice, voice_path, speed, response_format,
-              datetime.utcnow().isoformat()))
+              datetime.utcnow().isoformat(), filename))
         conn.commit()
         conn.close()
         return job_id
+
+    def update_progress(self, job_id, progress):
+        conn = _connect()
+        conn.execute("UPDATE jobs SET progress=? WHERE id=?", (progress, job_id))
+        conn.commit()
+        conn.close()
 
     def get_job(self, job_id):
         conn = _connect()
@@ -81,7 +90,16 @@ class QueueManager:
             "SELECT * FROM jobs ORDER BY created_at DESC LIMIT ?", (limit,)
         ).fetchall()
         conn.close()
-        return [dict(r) for r in rows]
+        jobs = []
+        for r in rows:
+            j = dict(r)
+            # Mask text content — only show length
+            text = j.get("text") or ""
+            j["text"] = f"[{len(text)} ký tự]"
+            # Hide voice_path (internal path)
+            j.pop("voice_path", None)
+            jobs.append(j)
+        return jobs
 
     def stats(self):
         conn = _connect()
@@ -115,6 +133,12 @@ class QueueManager:
         """)
         conn.commit()
         conn.close()
+
+    def get_worker(self, worker_id):
+        conn = _connect()
+        row = conn.execute("SELECT * FROM workers WHERE id=?", (worker_id,)).fetchone()
+        conn.close()
+        return dict(row) if row else None
 
     def list_workers(self):
         conn = _connect()

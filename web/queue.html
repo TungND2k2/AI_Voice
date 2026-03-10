@@ -254,13 +254,13 @@ body {
 .loading .worker-status-badge { background: var(--amberbg); color: var(--amber); }
 .offline .worker-status-badge { background: #1c1c1e; color: var(--text3); }
 
-.worker-progress { margin-top: 6px; height: 2px; background: var(--border); border-radius: 1px; overflow: hidden; }
+.worker-progress { margin-top: 6px; height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
 .worker-progress-fill {
   height: 100%;
   background: linear-gradient(90deg, var(--blue), var(--indigo2));
-  animation: prog 1.5s ease-in-out infinite alternate;
+  border-radius: 2px;
+  transition: width .5s ease;
 }
-@keyframes prog { from{width:10%} to{width:92%} }
 
 /* ── Submit panel ───────────────────────────────────────────────────────── */
 .submit-panel { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
@@ -383,6 +383,16 @@ tbody td { padding: 11px 14px; font-size: 12.5px; vertical-align: middle; }
   transition: background var(--transition), transform var(--transition);
 }
 .dl-btn:hover { background: rgba(34,197,94,.18); transform: scale(1.04); }
+.play-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 50%;
+  background: var(--bluebg); color: var(--blue);
+  border: 1px solid rgba(59,130,246,.25);
+  font-size: 12px; cursor: pointer;
+  transition: background var(--transition), transform var(--transition);
+}
+.play-btn:hover { background: rgba(59,130,246,.2); transform: scale(1.1); }
+.play-btn.playing { background: var(--amberbg); color: var(--amber); border-color: rgba(245,158,11,.25); }
 .err-msg { color: var(--red); font-size: 11px; max-width: 160px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -609,8 +619,8 @@ tbody td { padding: 11px 14px; font-size: 12.5px; vertical-align: middle; }
         <table>
           <thead>
             <tr>
-              <th>Job ID</th><th>Trạng thái</th><th>Worker</th>
-              <th>Giọng</th><th>Văn bản</th><th>Tốc độ</th><th>Format</th>
+              <th>Job ID</th><th>Tên</th><th>Trạng thái</th><th>Worker</th>
+              <th>Giọng</th><th>Tiến trình</th><th>Tốc độ</th><th>Format</th>
               <th>Tạo lúc</th><th>Thời gian</th><th>Thao tác</th>
             </tr>
           </thead>
@@ -659,6 +669,15 @@ tbody td { padding: 11px 14px; font-size: 12.5px; vertical-align: middle; }
         </div>
       </div>
 
+      <!-- Filename -->
+      <div class="field">
+        <label style="margin:0;font-size:12px;font-weight:600;color:var(--text2)">Tên file (tuỳ chọn)</label>
+        <input type="text" id="m-filename" placeholder="VD: bai_doc_chuong_1"
+          style="width:100%;background:var(--panel2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:13px;padding:8px 10px;outline:none;margin-top:6px;transition:border-color .15s"
+          onfocus="this.style.borderColor='var(--indigo)'"
+          onblur="this.style.borderColor='var(--border)'">
+      </div>
+
       <!-- Options row -->
       <div style="display:grid;grid-template-columns:1fr 1fr 120px;gap:12px">
         <div class="field">
@@ -703,6 +722,48 @@ tbody td { padding: 11px 14px; font-size: 12.5px; vertical-align: middle; }
 let allJobs = [];
 let currentFilter = 'all';
 let voices = [];
+let currentAudio = null;
+let currentPlayBtn = null;
+
+// ── Audio player ──────────────────────────────────────────────────────────
+function togglePlay(btn, jobId) {
+  // If same job is playing, pause it
+  if (currentAudio && currentPlayBtn === btn) {
+    currentAudio.pause();
+    currentAudio = null;
+    btn.textContent = '▶';
+    btn.classList.remove('playing');
+    currentPlayBtn = null;
+    return;
+  }
+  // Stop previous
+  if (currentAudio) {
+    currentAudio.pause();
+    if (currentPlayBtn) {
+      currentPlayBtn.textContent = '▶';
+      currentPlayBtn.classList.remove('playing');
+    }
+  }
+  // Play new
+  const audio = new Audio(`/v1/jobs/${jobId}/audio`);
+  currentAudio = audio;
+  currentPlayBtn = btn;
+  btn.textContent = '⏸';
+  btn.classList.add('playing');
+  audio.play();
+  audio.onended = () => {
+    btn.textContent = '▶';
+    btn.classList.remove('playing');
+    currentAudio = null;
+    currentPlayBtn = null;
+  };
+  audio.onerror = () => {
+    btn.textContent = '▶';
+    btn.classList.remove('playing');
+    currentAudio = null;
+    currentPlayBtn = null;
+  };
+}
 
 // ── Utils ──────────────────────────────────────────────────────────────────
 const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -764,20 +825,34 @@ function renderTable() {
     const badge = `<span class="badge b-${j.status}"><span class="dot"></span>${statusLabel(j.status)}${pos}</span>`;
     const wk = j.worker_id ? `<span class="wk-tag">${esc(j.worker_id.replace('worker-','w'))}</span>` : '<span style="color:var(--text3)">–</span>';
 
+    // Progress cell
+    const pct = Math.round(j.progress||0);
+    let progressCell;
+    if (j.status==='running')
+      progressCell = `<div style="min-width:70px"><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="font-size:11px;color:var(--blue);font-weight:600;font-family:monospace">${pct}%</span></div><div style="height:3px;background:var(--border);border-radius:2px;overflow:hidden"><div style="height:100%;width:${pct}%;background:linear-gradient(90deg,var(--blue),var(--indigo));border-radius:2px;transition:width .5s ease"></div></div></div>`;
+    else if (j.status==='completed')
+      progressCell = `<span style="font-size:11px;color:var(--green);font-weight:600;font-family:monospace">100%</span>`;
+    else if (j.status==='pending')
+      progressCell = `<span style="font-size:11px;color:var(--text3)">–</span>`;
+    else
+      progressCell = `<span style="font-size:11px;color:var(--red)">✗</span>`;
+
+    // Action cell
     let action = '';
     if (j.status==='completed')
-      action = `<a class="dl-btn" href="/v1/jobs/${j.id}/audio">⬇ Baixar</a>`;
+      action = `<div style="display:flex;gap:6px;align-items:center"><button class="play-btn" onclick="togglePlay(this,'${j.id}')" title="Nghe thử">▶</button><a class="dl-btn" href="/v1/jobs/${j.id}/audio">⬇ Tải</a></div>`;
     else if (j.status==='failed')
-      action = `<span class="err-msg" title="${esc(j.error)}">${esc(j.error||'Error')}</span>`;
+      action = `<span class="err-msg" title="${esc(j.error)}">${esc(j.error||'Lỗi')}</span>`;
     else if (j.status==='running')
       action = `<span style="color:var(--blue);font-size:11px">⚡ ${elapsed(j.started_at,'')}</span>`;
 
     return `<tr>
       <td><span class="mono" title="${j.id}">${j.id.slice(0,8)}…</span></td>
+      <td><span style="font-size:12px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block" title="${esc(j.filename||'')}">${esc(j.filename||'–')}</span></td>
       <td>${badge}</td>
       <td>${wk}</td>
       <td><span style="font-size:12px">${esc(j.voice||'–')}</span></td>
-      <td><div class="clip" title="${esc(j.text)}">${esc(j.text)}</div></td>
+      <td>${progressCell}</td>
       <td><span class="mono">${j.speed}×</span></td>
       <td><span class="mono" style="text-transform:uppercase">${j.response_format||'mp3'}</span></td>
       <td><span class="mono" title="${j.created_at||''}">${timeAgo(j.created_at)}</span></td>
@@ -788,11 +863,15 @@ function renderTable() {
 }
 
 // ── Render workers ─────────────────────────────────────────────────────────
-function renderWorkers(workers) {
+function renderWorkers(workers, jobs) {
   const busy = workers.filter(w=>w.status==='busy').length;
   const idle = workers.filter(w=>w.status==='idle').length;
   document.getElementById('workers-hint').textContent =
     `${busy} đang chạy · ${idle} sẵn sàng`;
+
+  // Build job progress lookup
+  const jobProgress = {};
+  (jobs||[]).forEach(j => { if (j.status==='running') jobProgress[j.id] = j.progress||0; });
 
   if (!workers.length) {
     document.getElementById('workers-list').innerHTML =
@@ -803,11 +882,12 @@ function renderWorkers(workers) {
   document.getElementById('workers-list').innerHTML = workers.map(w => {
     const st = w.status||'offline';
     const hb = w.heartbeat_at ? timeAgo(w.heartbeat_at) : '–';
+    const pct = w.current_job_id ? Math.round(jobProgress[w.current_job_id]||0) : 0;
     const detail = st==='busy' && w.current_job_id
-      ? `Job ${w.current_job_id.slice(0,8)}… · ${elapsed(w.started_at,'')} · HB ${hb}`
+      ? `Job ${w.current_job_id.slice(0,8)}… · <span style="color:var(--blue);font-weight:600">${pct}%</span> · ${elapsed(w.started_at,'')} · HB ${hb}`
       : `PID ${w.pid||'–'} · HB ${hb}`;
     const prog = st==='busy'
-      ? `<div class="worker-progress"><div class="worker-progress-fill"></div></div>` : '';
+      ? `<div class="worker-progress"><div class="worker-progress-fill" style="width:${pct}%;animation:none"></div></div>` : '';
     const canRemove = st !== 'busy';
     const removeBtn = `<button onclick="removeWorker('${esc(w.id)}')" title="Xóa worker" ${canRemove?'':'disabled'} style="background:none;border:1px solid ${canRemove?'rgba(239,68,68,.3)':'var(--border)'};color:${canRemove?'var(--red)':'var(--text3)'};width:22px;height:22px;border-radius:4px;cursor:${canRemove?'pointer':'not-allowed'};font-size:13px;line-height:1;flex-shrink:0;opacity:${canRemove?'1':'.4'}" onmouseover="if(!this.disabled)this.style.background='var(--redbg)'" onmouseout="this.style.background='none'">×</button>`;
     return `<div class="worker-row ${st}">
@@ -912,7 +992,7 @@ async function refresh() {
     setNum('n-completed', s.completed);
     setNum('n-failed',    s.failed);
 
-    renderWorkers(ws);
+    renderWorkers(ws, allJobs);
     renderTable();
 
     const now = new Date().toLocaleTimeString('vi-VN');
@@ -966,6 +1046,7 @@ async function submitDrawerJob() {
   const voice = document.getElementById('m-voice').value;
   const speed = document.getElementById('m-speed').value;
   const fmt   = document.getElementById('m-fmt').value;
+  const fname = document.getElementById('m-filename').value.trim() || null;
   const resultEl = document.getElementById('m-result');
   const btnEl    = document.getElementById('m-btn');
 
@@ -973,10 +1054,12 @@ async function submitDrawerJob() {
   btnEl.disabled = true;
   btnEl.textContent = '⏳ Đang đẩy...';
   try {
+    const payload = { input: text, voice, speed: parseFloat(speed), response_format: fmt };
+    if (fname) payload.filename = fname;
     const res = await fetch('/v1/audio/speech/async', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ input: text, voice, speed: parseFloat(speed), response_format: fmt })
+      body: JSON.stringify(payload)
     });
     const data = await res.json();
     if (res.ok) {

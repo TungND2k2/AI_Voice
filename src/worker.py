@@ -140,6 +140,13 @@ def _build_ffmpeg(fmt, output_path):
     return cmd + [output_path]
 
 
+def _update_progress(job_id, progress):
+    conn = _db()
+    conn.execute("UPDATE jobs SET progress=? WHERE id=?", (progress, job_id))
+    conn.commit()
+    conn.close()
+
+
 def _process(tts, job, worker_id):
     from src.utils.file_utils import load_prompt_speech_from_file
 
@@ -153,7 +160,9 @@ def _process(tts, job, worker_id):
     raw_audio = b""
     for idx, sentence in enumerate(sentences, 1):
         _heartbeat(worker_id)
-        logger.info(f"[{worker_id}] câu {idx}/{total}")
+        progress = round(idx / total * 100, 1)
+        _update_progress(job["id"], progress)
+        logger.info(f"[{worker_id}] câu {idx}/{total} ({progress}%)")
         model_input = tts.frontend.frontend_tts(sentence, prompt)
         for out in tts.model.tts(**model_input, stream=False, speed=float(job["speed"])):
             raw_audio += out["tts_speech"].numpy().tobytes()
@@ -206,7 +215,10 @@ def main():
     signal.signal(signal.SIGTERM, _shutdown)
     signal.signal(signal.SIGINT, _shutdown)
 
+    MAX_CONSECUTIVE_ERRORS = 5
+    consecutive_errors = 0
     last_hb = 0
+
     while True:
         try:
             now = time.time()
@@ -221,16 +233,32 @@ def main():
                     output_path = _process(tts, job, worker_id)
                     _finish_job(worker_id, job["id"], output_path=output_path)
                     logger.success(f"[{worker_id}] ✓ {job['id'][:8]}")
+                    consecutive_errors = 0
                 except Exception as e:
                     logger.error(f"[{worker_id}] ✗ {job['id'][:8]}: {e}")
                     _finish_job(worker_id, job["id"], error=str(e))
+                    consecutive_errors += 1
             else:
                 time.sleep(0.5)
+                continue
+
+            if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
+                logger.error(
+                    f"[{worker_id}] {consecutive_errors} consecutive job failures, "
+                    f"exiting to release GPU memory (supervisor will restart)"
+                )
+                _set_offline(worker_id)
+                sys.exit(1)
 
         except KeyboardInterrupt:
             _shutdown(None, None)
         except Exception as e:
             logger.error(f"[{worker_id}] loop error: {e}")
+            consecutive_errors += 1
+            if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
+                logger.error(f"[{worker_id}] too many loop errors, exiting")
+                _set_offline(worker_id)
+                sys.exit(1)
             time.sleep(2)
 
 
