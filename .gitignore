@@ -55,4 +55,4 @@ pretrained-models/*
 *_pb2.py
 poetry.lock
 .env
-.dc
+.dc.env
