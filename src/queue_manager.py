@@ -216,8 +216,10 @@ class QueueManager:
                  "--format=csv,noheader,nounits"],
                 stderr=_sp.DEVNULL, timeout=3
             ).decode().strip()
-            nums = [int(x.strip()) for x in out.split(",")]
-            vram_used_mb, vram_total_mb = nums[0], nums[1]
+            for line in out.splitlines():
+                parts = [int(x.strip()) for x in line.split(",")]
+                vram_used_mb  += parts[0]
+                vram_total_mb += parts[1]
         except Exception:
             pass
 

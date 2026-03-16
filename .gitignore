@@ -53,4 +53,4 @@ node_modules
 pretrained-models/*
 *_pb2_grpc.py
 *_pb2.py
-poetry.lock
+poetry.lock.env

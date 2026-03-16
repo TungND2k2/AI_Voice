@@ -30,6 +30,13 @@ MODEL_DIR = "pretrained-models"
 NUM_WORKERS = int(os.environ.get("TTS_NUM_WORKERS", 1))
 WORKER_STARTUP_DELAY = 15  # seconds between each worker start
 
+# Detect available GPUs for round-robin assignment
+try:
+    import torch
+    _NUM_GPUS = torch.cuda.device_count() or 1
+except Exception:
+    _NUM_GPUS = 1
+
 # Optional API key — set TTS_API_KEY env var to enable authentication.
 # If not set, the API is open (suitable for internal/LAN use only).
 _API_KEY_VALUE = os.environ.get("TTS_API_KEY", "")
@@ -316,12 +323,15 @@ async def list_workers():
 
 def _spawn_worker(idx: int, delay: int = 0) -> subprocess.Popen:
     cwd = os.getcwd()
+    env = os.environ.copy()
+    env["CUDA_VISIBLE_DEVICES"] = str(idx % _NUM_GPUS)
     proc = subprocess.Popen(
         [sys.executable, "-m", "src.worker",
          "--worker-index", str(idx),
          "--model-dir", MODEL_DIR,
          "--startup-delay", str(delay)],
         cwd=cwd,
+        env=env,
     )
     return proc
 

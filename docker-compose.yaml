@@ -11,10 +11,10 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              count: 1
+              count: 2
               capabilities: [gpu]
     environment:
-      - TTS_NUM_WORKERS=1
+      - TTS_NUM_WORKERS=2
       # Set a strong random string to protect the public API.
       # Generate one with: openssl rand -hex 32
       - TTS_API_KEY=${TTS_API_KEY:-}
@@ -30,7 +30,11 @@ services:
       - ./samples:/app/samples
       - ./src:/app/src
       - ./web:/app/web
-    command: gunicorn src.server:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8298 --workers 1 --timeout 300 --keep-alive 75 --graceful-timeout 60
+    command: >
+      sh -c "ln -sf /app/src /app/viettts &&
+      gunicorn src.server:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8298 --workers 1 --timeout 300 --keep-alive 75 --graceful-timeout 60"
+    runtime: nvidia
+    shm_size: '4gb'
 
   tunnel:
     image: cloudflare/cloudflared:latest
