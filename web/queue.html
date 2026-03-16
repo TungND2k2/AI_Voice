@@ -393,6 +393,22 @@ tbody td { padding: 11px 14px; font-size: 12.5px; vertical-align: middle; }
 }
 .play-btn:hover { background: rgba(59,130,246,.2); transform: scale(1.1); }
 .play-btn.playing { background: var(--amberbg); color: var(--amber); border-color: rgba(245,158,11,.25); }
+.pg-btn {
+  background: var(--panel2); border: 1px solid var(--border); color: var(--text2);
+  border-radius: var(--radius-sm); cursor: pointer; font-size: 12px; font-weight: 500;
+  min-width: 30px; height: 28px; padding: 0 6px;
+  transition: background var(--transition), border-color var(--transition);
+}
+.pg-btn:hover:not(:disabled) { background: var(--border); border-color: var(--border2); }
+.pg-btn:disabled { opacity: .35; cursor: not-allowed; }
+.pg-btn.pg-active { background: var(--indigobg); border-color: rgba(99,102,241,.4); color: var(--indigo2); font-weight: 700; }
+.del-btn {
+  background: transparent; border: 1px solid rgba(239,68,68,.2); color: var(--red);
+  border-radius: var(--radius-sm); cursor: pointer; font-size: 13px;
+  width: 28px; height: 28px; display: grid; place-items: center;
+  transition: background var(--transition), transform var(--transition);
+}
+.del-btn:hover { background: rgba(239,68,68,.15); transform: scale(1.1); }
 .err-msg { color: var(--red); font-size: 11px; max-width: 160px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -516,6 +532,27 @@ tbody td { padding: 11px 14px; font-size: 12.5px; vertical-align: middle; }
     </div>
 
     <div style="margin-top:8px;font-size:10px;color:var(--text3)" id="last-update">–</div>
+
+    <!-- API Key -->
+    <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px">
+      <button id="api-key-badge" onclick="toggleKeyPanel()"
+        style="width:100%;background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;font-size:10px;font-weight:500;cursor:pointer;text-align:left;color:var(--amber);transition:border-color .15s"
+        onmouseover="this.style.borderColor='var(--border2)'" onmouseout="this.style.borderColor='var(--border)'">
+        🔑 Chưa có key
+      </button>
+      <div id="api-key-panel" style="display:none;flex-direction:column;gap:6px;margin-top:6px">
+        <input id="api-key-input" type="password" placeholder="Nhập API key..."
+          style="width:100%;background:var(--panel2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:11px;padding:7px 8px;outline:none"
+          onfocus="this.style.borderColor='var(--indigo)'" onblur="this.style.borderColor='var(--border)'"
+          onkeydown="if(event.key==='Enter')saveKeyFromInput()">
+        <div style="display:flex;gap:6px">
+          <button onclick="saveKeyFromInput()"
+            style="flex:1;background:var(--indigo);border:none;border-radius:var(--radius-sm);color:#fff;font-size:11px;font-weight:600;padding:6px;cursor:pointer">Lưu</button>
+          <button onclick="setApiKey('');document.getElementById('api-key-panel').style.display='none'"
+            style="background:var(--redbg);border:1px solid rgba(239,68,68,.3);border-radius:var(--radius-sm);color:var(--red);font-size:11px;padding:6px 8px;cursor:pointer">Xóa</button>
+        </div>
+      </div>
+    </div>
   </div>
 </aside>
 
@@ -605,7 +642,7 @@ tbody td { padding: 11px 14px; font-size: 12.5px; vertical-align: middle; }
       <div class="table-toolbar">
         <div class="search-wrap">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input class="search-input" id="search" placeholder="Tìm văn bản, giọng, job ID..." oninput="renderTable()">
+          <input class="search-input" id="search" placeholder="Tìm job ID, tên file, giọng..." oninput="onSearchInput()">
         </div>
         <div class="filter-chips">
           <span class="chip active" data-filter="all" onclick="setFilter(this)">Tất cả</span>
@@ -627,6 +664,7 @@ tbody td { padding: 11px 14px; font-size: 12.5px; vertical-align: middle; }
           <tbody id="tbody"></tbody>
         </table>
       </div>
+      <div id="pagination"></div>
     </div>
   </div><!-- /content -->
 </div><!-- /main -->
@@ -718,12 +756,85 @@ tbody td { padding: 11px 14px; font-size: 12.5px; vertical-align: middle; }
 </style>
 
 <script>
+// ── API Key ────────────────────────────────────────────────────────────────
+const API_KEY_STORAGE = 'tts_api_key';
+
+function getApiKey() {
+  return localStorage.getItem(API_KEY_STORAGE) || '';
+}
+
+function setApiKey(key) {
+  localStorage.setItem(API_KEY_STORAGE, key.trim());
+  document.getElementById('api-key-input').value = key.trim();
+  updateKeyBadge();
+}
+
+function updateKeyBadge() {
+  const key = getApiKey();
+  const badge = document.getElementById('api-key-badge');
+  if (!badge) return;
+  if (key) {
+    badge.textContent = '🔑 ••••' + key.slice(-6);
+    badge.style.color = 'var(--green)';
+  } else {
+    badge.textContent = '🔑 Chưa có key';
+    badge.style.color = 'var(--amber)';
+  }
+}
+
+function toggleKeyPanel() {
+  const panel = document.getElementById('api-key-panel');
+  panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+  if (panel.style.display !== 'none') {
+    document.getElementById('api-key-input').focus();
+  }
+}
+
+function saveKeyFromInput() {
+  const val = document.getElementById('api-key-input').value;
+  setApiKey(val);
+  document.getElementById('api-key-panel').style.display = 'none';
+  refresh();
+}
+
+// Wrapper: tự động thêm X-API-Key header vào mọi request
+function apiFetch(url, opts = {}) {
+  const key = getApiKey();
+  if (key) {
+    opts.headers = Object.assign({ 'X-API-Key': key }, opts.headers || {});
+  }
+  return fetch(url, opts);
+}
+
 // ── State ──────────────────────────────────────────────────────────────────
 let allJobs = [];
+let totalJobs = 0;
+let totalPages = 1;
+let currentPage = 1;
+const PAGE_SIZE = 25;
 let currentFilter = 'all';
 let voices = [];
 let currentAudio = null;
 let currentPlayBtn = null;
+
+// ── Delete job ────────────────────────────────────────────────────────────
+async function deleteJob(jobId) {
+  if (!confirm('Xóa bản ghi này?')) return;
+  let r;
+  try {
+    r = await apiFetch(`/v1/jobs/${jobId}`, { method: 'DELETE' });
+  } catch(e) {
+    alert('Lỗi kết nối: ' + e.message);
+    return;
+  }
+  if (!r.ok) {
+    let msg = `HTTP ${r.status}`;
+    try { const e = await r.json(); msg = e.detail || msg; } catch(_) {}
+    alert('Lỗi xóa: ' + msg);
+    return;
+  }
+  poll();
+}
 
 // ── Audio player ──────────────────────────────────────────────────────────
 function togglePlay(btn, jobId) {
@@ -791,32 +902,38 @@ function setNum(id, v) {
 }
 
 // ── Filter ─────────────────────────────────────────────────────────────────
+let _searchTimer = null;
+function onSearchInput() {
+  clearTimeout(_searchTimer);
+  _searchTimer = setTimeout(() => renderTable(), 200);
+}
+
 function setFilter(el) {
   document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
   el.classList.add('active');
   currentFilter = el.dataset.filter;
-  renderTable();
+  currentPage = 1;
+  refresh();
 }
 
 // ── Render jobs table ──────────────────────────────────────────────────────
 function renderTable() {
   const q = (document.getElementById('search').value || '').toLowerCase();
-  let jobs = allJobs;
-  if (currentFilter !== 'all') jobs = jobs.filter(j => j.status === currentFilter);
-  if (q) jobs = jobs.filter(j =>
-    (j.text||'').toLowerCase().includes(q) ||
-    (j.voice||'').toLowerCase().includes(q) ||
-    (j.id||'').toLowerCase().includes(q)
-  );
+  const jobs = q ? allJobs.filter(j =>
+    (j.id||'').toLowerCase().includes(q) ||
+    (j.filename||'').toLowerCase().includes(q) ||
+    (j.voice||'').toLowerCase().includes(q)
+  ) : allJobs;
 
   if (!jobs.length) {
     document.getElementById('tbody').innerHTML = `
-      <tr><td colspan="10">
+      <tr><td colspan="11">
         <div class="empty">
           <div class="empty-icon">📭</div>
           <p>${currentFilter==='all'&&!q ? 'Chưa có job nào. Nhấn <strong>Tạo Job</strong> hoặc gọi <code>POST /v1/audio/speech/async</code>' : 'Không tìm thấy kết quả phù hợp.'}</p>
         </div>
       </td></tr>`;
+    renderPagination();
     return;
   }
 
@@ -838,13 +955,18 @@ function renderTable() {
       progressCell = `<span style="font-size:11px;color:var(--red)">✗</span>`;
 
     // Action cell
+    const delBtn = j.status !== 'running'
+      ? `<button class="del-btn" onclick="deleteJob('${j.id}')" title="Xóa">🗑</button>`
+      : '';
     let action = '';
     if (j.status==='completed')
-      action = `<div style="display:flex;gap:6px;align-items:center"><button class="play-btn" onclick="togglePlay(this,'${j.id}')" title="Nghe thử">▶</button><a class="dl-btn" href="/v1/jobs/${j.id}/audio">⬇ Tải</a></div>`;
+      action = `<div style="display:flex;gap:6px;align-items:center"><button class="play-btn" onclick="togglePlay(this,'${j.id}')" title="Nghe thử">▶</button><a class="dl-btn" href="/v1/jobs/${j.id}/audio">⬇ Tải</a>${delBtn}</div>`;
     else if (j.status==='failed')
-      action = `<span class="err-msg" title="${esc(j.error)}">${esc(j.error||'Lỗi')}</span>`;
+      action = `<div style="display:flex;gap:6px;align-items:center"><span class="err-msg" title="${esc(j.error)}">${esc(j.error||'Lỗi')}</span>${delBtn}</div>`;
     else if (j.status==='running')
       action = `<span style="color:var(--blue);font-size:11px">⚡ ${elapsed(j.started_at,'')}</span>`;
+    else
+      action = delBtn;
 
     return `<tr>
       <td><span class="mono" title="${j.id}">${j.id.slice(0,8)}…</span></td>
@@ -860,6 +982,42 @@ function renderTable() {
       <td>${action}</td>
     </tr>`;
   }).join('');
+  renderPagination();
+}
+
+// ── Pagination ──────────────────────────────────────────────────────────────
+function renderPagination() {
+  let el = document.getElementById('pagination');
+  if (!el) return;
+  if (totalPages <= 1) { el.innerHTML = ''; return; }
+  const start = (currentPage - 1) * PAGE_SIZE + 1;
+  const end = Math.min(currentPage * PAGE_SIZE, totalJobs);
+  const pages = [];
+  for (let i = 1; i <= totalPages; i++) {
+    if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+      pages.push(i);
+    } else if (pages[pages.length-1] !== '…') {
+      pages.push('…');
+    }
+  }
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;padding:10px 16px;border-top:1px solid var(--border);justify-content:space-between">
+      <span style="font-size:11px;color:var(--text3)">${start}–${end} / ${totalJobs} bản ghi</span>
+      <div style="display:flex;gap:4px;align-items:center">
+        <button class="pg-btn" onclick="goPage(${currentPage-1})" ${currentPage===1?'disabled':''}>‹</button>
+        ${pages.map(p => p==='…'
+          ? `<span style="color:var(--text3);padding:0 4px;font-size:12px">…</span>`
+          : `<button class="pg-btn${p===currentPage?' pg-active':''}" onclick="goPage(${p})">${p}</button>`
+        ).join('')}
+        <button class="pg-btn" onclick="goPage(${currentPage+1})" ${currentPage===totalPages?'disabled':''}>›</button>
+      </div>
+    </div>`;
+}
+
+function goPage(p) {
+  if (p < 1 || p > totalPages || p === currentPage) return;
+  currentPage = p;
+  refresh();
 }
 
 // ── Render workers ─────────────────────────────────────────────────────────
@@ -894,7 +1052,7 @@ function renderWorkers(workers, jobs) {
       <div class="worker-indicator"></div>
       <div class="worker-info">
         <div class="worker-name">${esc(w.id)}</div>
-        <div class="worker-detail">${esc(detail)}</div>
+        <div class="worker-detail">${detail}</div>
         ${prog}
       </div>
       <span class="worker-status-badge">${workerLabel(st)}</span>
@@ -909,7 +1067,7 @@ async function addWorker() {
   btn.disabled = true;
   btn.style.opacity = '.5';
   try {
-    const r = await fetch('/v1/workers', {method:'POST'});
+    const r = await apiFetch('/v1/workers', {method:'POST'});
     const d = await r.json();
     if (r.ok) {
       await refresh();
@@ -927,7 +1085,7 @@ async function addWorker() {
 async function removeWorker(workerId) {
   if (!confirm(`Xóa ${workerId}? Job đang chạy (nếu có) sẽ được đẩy lại hàng đợi.`)) return;
   try {
-    const r = await fetch(`/v1/workers/${encodeURIComponent(workerId)}`, {method:'DELETE'});
+    const r = await apiFetch(`/v1/workers/${encodeURIComponent(workerId)}`, {method:'DELETE'});
     const d = await r.json();
     if (r.ok) {
       await refresh();
@@ -944,7 +1102,7 @@ async function manualCleanup(maxAgeHours) {
   const label = maxAgeHours === 0 ? 'tất cả file đã hoàn thành' : `file cũ hơn ${maxAgeHours}h`;
   if (!confirm(`Xác nhận xóa ${label}?`)) return;
   try {
-    const r = await fetch(`/v1/storage/cleanup?max_age_hours=${maxAgeHours}`, {method:'POST'});
+    const r = await apiFetch(`/v1/storage/cleanup?max_age_hours=${maxAgeHours}`, {method:'POST'});
     const d = await r.json();
     alert(`✅ Đã xóa ${d.deleted_files} file, giải phóng ${d.freed_mb} MB`);
     await refresh();
@@ -953,10 +1111,17 @@ async function manualCleanup(maxAgeHours) {
 
 async function refresh() {
   try {
+    const statusParam = currentFilter !== 'all' ? `&status=${currentFilter}` : '';
+    const jobsUrl = `/v1/jobs?page=${currentPage}&page_size=${PAGE_SIZE}${statusParam}`;
     const [jr, sr, wr, stor] = await Promise.all([
-      fetch('/v1/jobs'), fetch('/v1/jobs/stats'), fetch('/v1/workers'), fetch('/v1/storage')
+      apiFetch(jobsUrl), apiFetch('/v1/jobs/stats'), apiFetch('/v1/workers'), apiFetch('/v1/storage')
     ]);
-    allJobs = await jr.json();
+    const jd = await jr.json();
+    allJobs    = jd.jobs || [];
+    totalJobs  = jd.total || 0;
+    totalPages = jd.pages || 1;
+    // Clamp page if data shrank (e.g. after delete)
+    if (currentPage > totalPages) { currentPage = totalPages; }
     const s  = await sr.json();
     const ws = await wr.json();
     const st = await stor.json();
@@ -1006,7 +1171,7 @@ async function refresh() {
 // ── Load voices into selects ───────────────────────────────────────────────
 async function loadVoices() {
   try {
-    voices = await (await fetch('/v1/voices')).json();
+    voices = await (await apiFetch('/v1/voices')).json();
     const el = document.getElementById('m-voice');
     if (el) el.innerHTML = voices.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
   } catch(e) {}
@@ -1056,7 +1221,7 @@ async function submitDrawerJob() {
   try {
     const payload = { input: text, voice, speed: parseFloat(speed), response_format: fmt };
     if (fname) payload.filename = fname;
-    const res = await fetch('/v1/audio/speech/async', {
+    const res = await apiFetch('/v1/audio/speech/async', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify(payload)
@@ -1088,6 +1253,13 @@ function closeDrawer(e) {
 document.addEventListener('keydown', e => { if (e.key==='Escape') closeDrawer(); });
 
 // ── Init ───────────────────────────────────────────────────────────────────
+updateKeyBadge();
+// Pre-fill input with stored key
+const _storedKey = getApiKey();
+if (_storedKey) document.addEventListener('DOMContentLoaded', () => {
+  const inp = document.getElementById('api-key-input');
+  if (inp) inp.value = _storedKey;
+});
 loadVoices();
 refresh();
 setInterval(refresh, 3000);

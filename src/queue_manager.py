@@ -52,7 +52,7 @@ class QueueManager:
             );
         """)
         # Migrations
-        for col, typ in [("worker_id", "TEXT"), ("progress", "REAL DEFAULT 0"), ("filename", "TEXT")]:
+        for col, typ in [("worker_id", "TEXT"), ("progress", "REAL DEFAULT 0"), ("filename", "TEXT"), ("s3_url", "TEXT")]:
             try:
                 conn.execute(f"ALTER TABLE jobs ADD COLUMN {col} {typ}")
                 conn.commit()
@@ -84,22 +84,49 @@ class QueueManager:
         conn.close()
         return dict(row) if row else None
 
-    def list_jobs(self, limit=100):
+    def list_jobs(self, page=1, page_size=25, status=None):
         conn = _connect()
+        offset = (page - 1) * page_size
+        where = "WHERE status = ?" if status else ""
+        params_count = (status,) if status else ()
+        params_rows = (status, page_size, offset) if status else (page_size, offset)
+        total = conn.execute(
+            f"SELECT COUNT(*) FROM jobs {where}", params_count
+        ).fetchone()[0]
         rows = conn.execute(
-            "SELECT * FROM jobs ORDER BY created_at DESC LIMIT ?", (limit,)
+            f"SELECT * FROM jobs {where} ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            params_rows
         ).fetchall()
         conn.close()
         jobs = []
         for r in rows:
             j = dict(r)
-            # Mask text content — only show length
             text = j.get("text") or ""
             j["text"] = f"[{len(text)} ký tự]"
-            # Hide voice_path (internal path)
             j.pop("voice_path", None)
             jobs.append(j)
-        return jobs
+        return {"jobs": jobs, "total": total, "page": page, "page_size": page_size, "pages": max(1, -(-total // page_size))}
+
+    def delete_job(self, job_id):
+        conn = _connect()
+        output_path = None
+        try:
+            job = conn.execute("SELECT status, output_path FROM jobs WHERE id = ?", (job_id,)).fetchone()
+            if not job:
+                return False
+            if job["status"] == "running":
+                return None  # cannot delete running job
+            output_path = job["output_path"]
+            conn.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
+            conn.commit()
+        finally:
+            conn.close()
+        if output_path:
+            try:
+                os.remove(output_path)
+            except OSError:
+                pass  # file already gone — not an error
+        return True
 
     def stats(self):
         conn = _connect()

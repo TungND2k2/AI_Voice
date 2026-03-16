@@ -15,9 +15,10 @@ import gradio as gr
 from loguru import logger
 from datetime import datetime
 from pydantic import BaseModel
-from fastapi import FastAPI, UploadFile, Form, File, HTTPException
+from fastapi import FastAPI, UploadFile, Form, File, HTTPException, Security, Depends
 from fastapi.responses import StreamingResponse, PlainTextResponse, FileResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security.api_key import APIKeyHeader
 
 from src.utils.file_utils import load_voices
 from src.queue_manager import QueueManager
@@ -28,6 +29,17 @@ VOICE_MAP = load_voices(VOICE_DIR)
 MODEL_DIR = "pretrained-models"
 NUM_WORKERS = int(os.environ.get("TTS_NUM_WORKERS", 1))
 WORKER_STARTUP_DELAY = 15  # seconds between each worker start
+
+# Optional API key — set TTS_API_KEY env var to enable authentication.
+# If not set, the API is open (suitable for internal/LAN use only).
+_API_KEY_VALUE = os.environ.get("TTS_API_KEY", "")
+_api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+
+async def _require_api_key(key: str = Security(_api_key_header)):
+    if _API_KEY_VALUE and key != _API_KEY_VALUE:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
 
 queue_manager = QueueManager()
 _worker_procs: dict[int, subprocess.Popen] = {}
@@ -119,8 +131,8 @@ async def show_voices():
 
 
 # ── Sync TTS (OpenAI-compatible) — submits to queue and waits ───────────────
-@app.post("/audio/speech")
-@app.post("/v1/audio/speech")
+@app.post("/audio/speech", dependencies=[Depends(_require_api_key)])
+@app.post("/v1/audio/speech", dependencies=[Depends(_require_api_key)])
 async def openai_api_tts(req: OpenAITTSRequest):
     logger.info(f"[API] /audio/speech voice={req.voice} fmt={req.response_format}")
     voice_file = _resolve_voice(req.voice)
@@ -151,8 +163,8 @@ async def openai_api_tts(req: OpenAITTSRequest):
 
 
 # ── Extended TTS (form-data with voice upload) ──────────────────────────────
-@app.post("/tts")
-@app.post("/v1/tts")
+@app.post("/tts", dependencies=[Depends(_require_api_key)])
+@app.post("/v1/tts", dependencies=[Depends(_require_api_key)])
 async def tts(
     text: str = Form(...),
     voice: str = Form("0"),
@@ -219,7 +231,7 @@ async def tts(
 
 
 # ── Async TTS — returns job_id immediately ───────────────────────────────────
-@app.post("/v1/audio/speech/async")
+@app.post("/v1/audio/speech/async", dependencies=[Depends(_require_api_key)])
 async def async_openai_tts(req: AsyncTTSRequest):
     voice_file = _resolve_voice(req.voice)
     if not voice_file:
@@ -237,17 +249,17 @@ async def async_openai_tts(req: AsyncTTSRequest):
 
 
 # ── Job endpoints ───────────────────────────────────────────────────────────
-@app.get("/v1/jobs/stats")
+@app.get("/v1/jobs/stats", dependencies=[Depends(_require_api_key)])
 async def jobs_stats():
     return queue_manager.stats()
 
 
-@app.get("/v1/jobs")
-async def list_jobs(limit: int = 100):
-    return queue_manager.list_jobs(limit=limit)
+@app.get("/v1/jobs", dependencies=[Depends(_require_api_key)])
+async def list_jobs(page: int = 1, page_size: int = 25, status: str = None):
+    return queue_manager.list_jobs(page=page, page_size=page_size, status=status or None)
 
 
-@app.get("/v1/jobs/{job_id}")
+@app.get("/v1/jobs/{job_id}", dependencies=[Depends(_require_api_key)])
 async def get_job(job_id: str):
     job = queue_manager.get_job(job_id)
     if not job:
@@ -259,6 +271,20 @@ async def get_job(job_id: str):
     job["text"] = f"[{len(text)} ký tự]"
     job.pop("voice_path", None)
     return job
+
+
+@app.delete("/v1/jobs/{job_id}", dependencies=[Depends(_require_api_key)])
+async def delete_job(job_id: str):
+    try:
+        result = queue_manager.delete_job(job_id)
+    except Exception as e:
+        logger.error(f"[API] delete_job {job_id[:8]} error: {e}")
+        raise HTTPException(500, f"Delete failed: {e}")
+    if result is None:
+        raise HTTPException(409, "Cannot delete a running job")
+    if result is False:
+        raise HTTPException(404, "Job not found")
+    return {"deleted": True}
 
 
 @app.get("/v1/jobs/{job_id}/audio")
@@ -672,10 +698,37 @@ async def queue_monitor():
     return QUEUE_HTML
 
 
-# ── Startup ─────────────────────────────────────────────────────────────────
+# ── Startup / Shutdown ──────────────────────────────────────────────────────
+def _kill_orphaned_workers():
+    """Kill any worker processes still alive from a previous server run."""
+    try:
+        conn = __import__("sqlite3").connect(str(__import__("pathlib").Path("/tmp/tts_outputs/queue.db")),
+                                             timeout=5)
+        rows = conn.execute("SELECT id, pid FROM workers WHERE pid IS NOT NULL").fetchall()
+        conn.close()
+    except Exception:
+        return
+    for worker_id, pid in rows:
+        if pid is None:
+            continue
+        try:
+            os.kill(pid, 0)          # check if process exists
+        except ProcessLookupError:
+            continue                  # already gone
+        except PermissionError:
+            pass                      # exists but no permission — try anyway
+        try:
+            os.kill(pid, __import__("signal").SIGKILL)
+            logger.warning(f"[Server] Killed orphaned {worker_id} (PID {pid})")
+        except Exception as e:
+            logger.debug(f"[Server] Could not kill {worker_id} PID {pid}: {e}")
+
+
 @app.on_event("startup")
 async def startup():
     global _next_worker_idx
+    # Kill orphaned worker processes left over from the previous server run
+    _kill_orphaned_workers()
     # Clear stale worker records from previous run
     queue_manager.clear_workers()
     # Launch NUM_WORKERS external worker processes (staggered)
@@ -740,6 +793,29 @@ async def startup():
                 logger.info(f"[Server] Restarted {worker_id} (PID {new_proc.pid})")
 
     threading.Thread(target=_supervisor, daemon=True).start()
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    """Terminate all worker subprocesses so GPU memory is released cleanly."""
+    with _worker_lock:
+        snapshot = list(_worker_procs.items())
+    for idx, proc in snapshot:
+        if proc.poll() is None:
+            try:
+                proc.terminate()
+            except Exception:
+                pass
+    for idx, proc in snapshot:
+        try:
+            proc.wait(timeout=5)
+        except Exception:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+    logger.info("[Server] All worker processes terminated")
+
 
     # Gradio UI — submits jobs to queue and polls for result
     def synthesize(text, voice, speed, audio_file):

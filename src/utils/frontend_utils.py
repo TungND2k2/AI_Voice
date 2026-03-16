@@ -89,6 +89,57 @@ def split_text(text: str, tokenize, token_max_n=80, token_min_n=60, merge_len=20
     def should_merge(_text: str):
         return len(tokenize(_text)) < merge_len
 
+    def _force_split_by_comma(utt: str) -> list:
+        """Break a single oversized utterance further: first by comma, then by words."""
+        if calc_utt_length(utt) <= token_max_n:
+            return [utt]
+
+        # Split on Vietnamese/Chinese commas, keeping the delimiter attached
+        raw = re.split(r'([,，])', utt)
+        chunks = []
+        i = 0
+        while i < len(raw):
+            piece = raw[i]
+            if i + 1 < len(raw) and raw[i + 1] in (',', '，'):
+                piece += raw[i + 1]
+                i += 2
+            else:
+                i += 1
+            if piece.strip():
+                chunks.append(piece)
+
+        # Merge comma-chunks up to token_max_n
+        result = []
+        cur = ""
+        for chunk in chunks:
+            if cur and calc_utt_length(cur + chunk) > token_max_n:
+                result.append(cur)
+                cur = chunk
+            else:
+                cur += chunk
+        if cur:
+            result.append(cur)
+
+        # Last resort: word-level split for chunks still over the limit
+        final = []
+        for part in result:
+            if calc_utt_length(part) <= token_max_n:
+                final.append(part)
+            else:
+                words = part.split(' ')
+                cur_w = ""
+                for w in words:
+                    candidate = (cur_w + ' ' + w).strip() if cur_w else w
+                    if cur_w and calc_utt_length(candidate) > token_max_n:
+                        final.append(cur_w.strip())
+                        cur_w = w
+                    else:
+                        cur_w = candidate
+                if cur_w:
+                    final.append(cur_w.strip())
+
+        return [f for f in final if f.strip()]
+
     pounc = ['.', '?', '!', ';', ':']
     if comma_split:
         pounc.extend(['，', ','])
@@ -108,6 +159,12 @@ def split_text(text: str, tokenize, token_max_n=80, token_min_n=60, merge_len=20
                 st = i + 2
             else:
                 st = i + 1
+
+    # Expand any single sentence that already exceeds token_max_n
+    expanded = []
+    for utt in utts:
+        expanded.extend(_force_split_by_comma(utt))
+    utts = expanded
 
     final_utts = []
     cur_utt = ""

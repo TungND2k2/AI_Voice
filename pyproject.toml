@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "VietTTS: An Open-Source Vietnamese Text to Speech"
 authors = ["dangvansam <dangvansam98@gmail.com>"]
 readme = "README.md"
+packages = [{include = "src"}]
 
 [tool.poetry.dependencies]
 python = "^3.10"
@@ -27,6 +28,7 @@ fastapi = "0.111.0"
 fastapi-cli = "0.0.4"
 loguru = "0.7.2"
 vinorm = "^2.0.7"
+boto3 = ">=1.26"
 huggingface-hub = "0.24.7"
 click = "^8.1.7"
 gunicorn = "^23.0.0"

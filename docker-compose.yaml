@@ -15,12 +15,22 @@ services:
               capabilities: [gpu]
     environment:
       - TTS_NUM_WORKERS=1
+      # Set a strong random string to protect the public API.
+      # Generate one with: openssl rand -hex 32
+      - TTS_API_KEY=${TTS_API_KEY:-}
+      # S3 — upload audio after render
+      - S3_ENDPOINT=${S3_ENDPOINT:-}
+      - S3_REGION=${S3_REGION:-us-east-1}
+      - S3_BUCKET=${S3_BUCKET:-}
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY:-}
+      - S3_SECRET_KEY=${S3_SECRET_KEY:-}
+      - S3_PUBLIC_URL=${S3_PUBLIC_URL:-}
     volumes:
       - ./pretrained-models:/app/pretrained-models
       - ./samples:/app/samples
       - ./src:/app/src
       - ./web:/app/web
-    command: gunicorn src.server:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8298 --workers 1 --max-requests 1000 --max-requests-jitter 50 --timeout 300 --keep-alive 75 --graceful-timeout 60
+    command: gunicorn src.server:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8298 --workers 1 --timeout 300 --keep-alive 75 --graceful-timeout 60
 
   tunnel:
     image: cloudflare/cloudflared:latest
@@ -28,4 +38,13 @@ services:
     container_name: viet-tts-tunnel
     depends_on:
       - api
+    # Option A — named tunnel with fixed domain (recommended for production):
+    #   1. Create a tunnel: cloudflared tunnel create viet-tts
+    #   2. Copy the token shown and set CLOUDFLARE_TUNNEL_TOKEN in .env
+    #   3. Uncomment the line below and comment out the quick-tunnel command
+    # command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    #
+    # Option B — quick tunnel (random URL, changes on restart, dev only):
     command: tunnel --no-autoupdate --url http://api:8298
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN:-}

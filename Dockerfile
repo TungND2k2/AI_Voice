@@ -10,8 +10,8 @@ RUN pip install --no-cache-dir poetry==${POETRY_VERSION}
 
 ENV POETRY_CACHE_DIR=/tmp/poetry_cache
 ENV POETRY_NO_INTERACTION=1
-ENV POETRY_VIRTUALENVS_IN_PROJECT=true
-ENV POETRY_VIRTUALENVS_CREATE=true
+ENV POETRY_VIRTUALENVS_IN_PROJECT=false
+ENV POETRY_VIRTUALENVS_CREATE=false
 ENV POETRY_REQUESTS_TIMEOUT=15
 
 RUN apt-get update && apt-get install -y --no-install-recommends \

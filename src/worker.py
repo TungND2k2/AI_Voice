@@ -99,7 +99,7 @@ def _claim_job(worker_id):
         conn.close()
 
 
-def _finish_job(worker_id, job_id, output_path=None, error=None):
+def _finish_job(worker_id, job_id, output_path=None, error=None, s3_url=None):
     conn = _db()
     now = datetime.utcnow().isoformat()
     if error:
@@ -109,8 +109,8 @@ def _finish_job(worker_id, job_id, output_path=None, error=None):
         )
     else:
         conn.execute(
-            "UPDATE jobs SET status='completed', completed_at=?, output_path=? WHERE id=?",
-            (now, output_path, job_id)
+            "UPDATE jobs SET status='completed', completed_at=?, output_path=?, s3_url=? WHERE id=?",
+            (now, output_path, s3_url, job_id)
         )
     conn.execute(
         "UPDATE workers SET status='idle', current_job_id=NULL, heartbeat_at=? WHERE id=?",
@@ -120,23 +120,42 @@ def _finish_job(worker_id, job_id, output_path=None, error=None):
     conn.close()
 
 
+# ── S3 upload ───────────────────────────────────────────────────────────────
+
+def _upload_s3(job, output_path):
+    """Upload finished audio to S3 (if configured). Returns S3 URL or None."""
+    try:
+        from src.utils.s3_utils import is_s3_enabled, upload_file
+        if not is_s3_enabled():
+            return None
+        fmt = job.get("response_format", "mp3")
+        filename = job.get("filename") or job["id"]
+        if not filename.endswith(f".{fmt}"):
+            filename = f"{filename}.{fmt}"
+        s3_key = f"tts/{filename}"
+        return upload_file(output_path, s3_key)
+    except Exception as e:
+        logger.warning(f"[S3] Upload failed (job will still complete): {e}")
+        return None
+
+
 # ── TTS processing ──────────────────────────────────────────────────────────
 
 def _build_ffmpeg(fmt, output_path):
     cmd = ["ffmpeg", "-loglevel", "error", "-y",
-           "-f", "f32le", "-ar", "24000", "-ac", "1", "-i", "-"]
+           "-f", "f32le", "-ar", "22050", "-ac", "1", "-i", "-"]
     if fmt == "mp3":
-        cmd += ["-f", "mp3", "-c:a", "libmp3lame", "-ab", "64k"]
+        cmd += ["-f", "mp3", "-c:a", "libmp3lame", "-ab", "192k"]
     elif fmt == "wav":
         cmd += ["-f", "wav", "-c:a", "pcm_s16le"]
     elif fmt == "flac":
         cmd += ["-f", "flac", "-c:a", "flac"]
     elif fmt == "opus":
-        cmd += ["-f", "ogg", "-c:a", "libopus"]
+        cmd += ["-f", "ogg", "-c:a", "libopus", "-ab", "128k"]
     elif fmt == "aac":
-        cmd += ["-f", "adts", "-c:a", "aac", "-ab", "64k"]
+        cmd += ["-f", "adts", "-c:a", "aac", "-ab", "192k"]
     else:
-        cmd += ["-f", "mp3", "-c:a", "libmp3lame", "-ab", "64k"]
+        cmd += ["-f", "mp3", "-c:a", "libmp3lame", "-ab", "192k"]
     return cmd + [output_path]
 
 
@@ -231,7 +250,8 @@ def main():
                 logger.info(f"[{worker_id}] ▶ {job['id'][:8]}")
                 try:
                     output_path = _process(tts, job, worker_id)
-                    _finish_job(worker_id, job["id"], output_path=output_path)
+                    s3_url = _upload_s3(job, output_path)
+                    _finish_job(worker_id, job["id"], output_path=output_path, s3_url=s3_url)
                     logger.success(f"[{worker_id}] ✓ {job['id'][:8]}")
                     consecutive_errors = 0
                 except Exception as e:
